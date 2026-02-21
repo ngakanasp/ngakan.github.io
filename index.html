@@ -1,146 +1,168 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ngakan</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ngakan</title>
 
-  <meta name="description" content="ngakan" />
-  <meta property="og:title" content="ngakan" />
-  <meta property="og:type" content="website" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
 
-  <link rel="icon" href="data:," />
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      background: #0f0f0f;
-      color: white;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      overflow: hidden;
-    }
+<!-- Favicon -->
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 
-    canvas {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-    }
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
 
-    .center {
-      position: relative;
-      z-index: 1;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      letter-spacing: 4px;
-    }
-
-    h1 {
-      font-size: 48px;
-      font-weight: 600;
-      margin: 0;
-    }
-
-    a {
-      margin-top: 20px;
-      color: #aaa;
-      text-decoration: none;
-      transition: 0.3s ease;
-    }
-
-    a:hover {
-      color: white;
-    }
-  </style>
-</head>
-<body>
-
-<canvas id="bg"></canvas>
-
-<div class="center">
-  <h1>ngakan</h1>
-  <a href="https://page.ngakan.com">portfolio</a>
-</div>
-
-<script>
-const canvas = document.getElementById("bg");
-const ctx = canvas.getContext("2d");
-
-let width, height;
-let particles = [];
-const particleCount = 120;
-let mouse = { x: null, y: null };
-
-function resize() {
-  width = canvas.width = window.innerWidth;
-  height = canvas.height = window.innerHeight;
-}
-window.addEventListener("resize", resize);
-resize();
-
-window.addEventListener("mousemove", e => {
-  mouse.x = e.clientX;
-  mouse.y = e.clientY;
-});
-
-class Particle {
-  constructor() {
-    this.x = Math.random() * width;
-    this.y = Math.random() * height;
-    this.vx = (Math.random() - 0.5) * 1.2;
-    this.vy = (Math.random() - 0.5) * 1.2;
-    this.size = 1.5;
-  }
-
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-
-    if (this.x < 0 || this.x > width) this.vx *= -1;
-    if (this.y < 0 || this.y > height) this.vy *= -1;
-
-    if (mouse.x) {
-      const dx = this.x - mouse.x;
-      const dy = this.y - mouse.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist < 120) {
-        this.vx += dx * 0.0005;
-        this.vy += dy * 0.0005;
-      }
-    }
-  }
-
-  draw() {
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function init() {
-  particles = [];
-  for (let i = 0; i < particleCount; i++) {
-    particles.push(new Particle());
-  }
-}
-
-function animate() {
-  ctx.clearRect(0, 0, width, height);
-  particles.forEach(p => {
-    p.update();
-    p.draw();
-  });
-  requestAnimationFrame(animate);
-}
-
-init();
-animate();
-</script>
-
-</body>
-</html>
+html, body {
+  height:100%;
+    background:#0a0a0f;
+      font-family:'Inter', sans-serif;
+        overflow:hidden;
+          color:white;
+          }
+          
+          canvas {
+            position:fixed;
+              top:0;
+                left:0;
+                }
+                
+                .center {
+                  position:absolute;
+                    top:50%;
+                      left:50%;
+                        transform:translate(-50%, -50%);
+                          text-align:center;
+                            padding:60px 80px;
+                              backdrop-filter: blur(18px);
+                                background: rgba(255,255,255,0.04);
+                                  border:1px solid rgba(255,255,255,0.08);
+                                    border-radius:20px;
+                                      box-shadow:
+                                          0 0 40px rgba(255,255,255,0.05),
+                                              inset 0 0 40px rgba(255,255,255,0.03);
+                                              }
+                                              
+                                              h1 {
+                                                font-weight:700;
+                                                  font-size: clamp(50px, 9vw, 100px);
+                                                    letter-spacing:4px;
+                                                      background: linear-gradient(90deg, #ffffff, #bdbdbd);
+                                                        -webkit-background-clip:text;
+                                                          -webkit-text-fill-color:transparent;
+                                                          }
+                                                          
+                                                          a {
+                                                            display:inline-block;
+                                                              margin-top:18px;
+                                                                font-weight:300;
+                                                                  letter-spacing:2px;
+                                                                    text-decoration:none;
+                                                                      color:rgba(255,255,255,0.6);
+                                                                        transition:0.4s ease;
+                                                                        }
+                                                                        
+                                                                        a:hover {
+                                                                          letter-spacing:4px;
+                                                                            color:white;
+                                                                            }
+                                                                            </style>
+                                                                            </head>
+                                                                            
+                                                                            <body>
+                                                                            
+                                                                            <canvas id="bg"></canvas>
+                                                                            
+                                                                            <div class="center">
+                                                                              <h1>ngakan</h1>
+                                                                                <a href="https://page.ngakan.com">links [but not yet]</a>
+                                                                                </div>
+                                                                                
+                                                                                <script>
+                                                                                const canvas = document.getElementById("bg");
+                                                                                const ctx = canvas.getContext("2d");
+                                                                                
+                                                                                let particles = [];
+                                                                                let mouse = { x: null, y: null };
+                                                                                
+                                                                                function resize() {
+                                                                                  canvas.width = window.innerWidth * devicePixelRatio;
+                                                                                    canvas.height = window.innerHeight * devicePixelRatio;
+                                                                                      ctx.setTransform(1,0,0,1,0,0);
+                                                                                        ctx.scale(devicePixelRatio, devicePixelRatio);
+                                                                                        }
+                                                                                        resize();
+                                                                                        window.addEventListener("resize", resize);
+                                                                                        
+                                                                                        window.addEventListener("mousemove", e => {
+                                                                                          mouse.x = e.clientX;
+                                                                                            mouse.y = e.clientY;
+                                                                                            });
+                                                                                            
+                                                                                            class Particle {
+                                                                                              constructor(layer) {
+                                                                                                  this.layer = layer;
+                                                                                                      this.depth = layer === 1 ? 0.3 : layer === 2 ? 0.6 : 1;
+                                                                                                          this.x = Math.random() * window.innerWidth;
+                                                                                                              this.y = Math.random() * window.innerHeight;
+                                                                                                                  this.baseX = this.x;
+                                                                                                                      this.baseY = this.y;
+                                                                                                                          this.size = Math.random() * 1.2 + 0.4 * this.depth;
+                                                                                                                              this.vx = 0;
+                                                                                                                                  this.vy = 0;
+                                                                                                                                    }
+                                                                                                                                    
+                                                                                                                                      update() {
+                                                                                                                                          if (mouse.x !== null) {
+                                                                                                                                                let dx = this.x - mouse.x;
+                                                                                                                                                      let dy = this.y - mouse.y;
+                                                                                                                                                            let dist = Math.sqrt(dx*dx + dy*dy);
+                                                                                                                                                                  let maxDist = 180 * this.depth;
+                                                                                                                                                                  
+                                                                                                                                                                        if (dist < maxDist) {
+                                                                                                                                                                                let force = (maxDist - dist) / maxDist;
+                                                                                                                                                                                        this.vx += (dx/dist) * force * 2 * this.depth;
+                                                                                                                                                                                                this.vy += (dy/dist) * force * 2 * this.depth;
+                                                                                                                                                                                                      }
+                                                                                                                                                                                                          }
+                                                                                                                                                                                                          
+                                                                                                                                                                                                              this.vx *= 0.94;
+                                                                                                                                                                                                                  this.vy *= 0.94;
+                                                                                                                                                                                                                  
+                                                                                                                                                                                                                      this.vx += (this.baseX - this.x) * 0.001 * this.depth;
+                                                                                                                                                                                                                          this.vy += (this.baseY - this.y) * 0.001 * this.depth;
+                                                                                                                                                                                                                          
+                                                                                                                                                                                                                              this.x += this.vx;
+                                                                                                                                                                                                                                  this.y += this.vy;
+                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                    
+                                                                                                                                                                                                                                      draw() {
+                                                                                                                                                                                                                                          ctx.beginPath();
+                                                                                                                                                                                                                                              ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                                                                                                                                                                                                                                                  ctx.fillStyle = `rgba(255,255,255,${0.4 + this.depth*0.5})`;
+                                                                                                                                                                                                                                                      ctx.shadowBlur = 10 * this.depth;
+                                                                                                                                                                                                                                                          ctx.shadowColor = "white";
+                                                                                                                                                                                                                                                              ctx.fill();
+                                                                                                                                                                                                                                                                  ctx.shadowBlur = 0;
+                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                    
+                                                                                                                                                                                                                                                                    function init() {
+                                                                                                                                                                                                                                                                      particles = [];
+                                                                                                                                                                                                                                                                        let density = Math.floor((window.innerWidth * window.innerHeight) / 12000);
+                                                                                                                                                                                                                                                                          for (let i = 0; i < density; i++) particles.push(new Particle(1));
+                                                                                                                                                                                                                                                                            for (let i = 0; i < density/2; i++) particles.push(new Particle(2));
+                                                                                                                                                                                                                                                                              for (let i = 0; i < density/3; i++) particles.push(new Particle(3));
+                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                              init();
+                                                                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                                                              function animate() {
+                                                                                                                                                                                                                                                                                ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+                                                                                                                                                                                                                                                                                  particles.forEach(p => { p.update(); p.draw(); });
+                                                                                                                                                                                                                                                                                    requestAnimationFrame(animate);
+                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                    animate();
+                                                                                                                                                                                                                                                                                    </script>
+                                                                                                                                                                                                                                                                                    
+                                                                                                                                                                                                                                                                                    </body>
+                                                                                                                                                                                                                                                                                    </html>>
