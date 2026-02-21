@@ -4,51 +4,96 @@
   <meta charset="utf-8" />
   <title>ngakan</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@8..144,400..600&display=swap" rel="stylesheet">
 
+  <link rel="shortcut icon" href="favicon.svg" type="image/svg+xml">
+
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body, html { width: 100%; height: 100%; overflow: hidden; background: #ffffff; font-family: 'Google Sans Flex', sans-serif; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-    .app { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #ffffff;
+      font-family: 'Google Sans Flex', sans-serif;
+    }
 
-    /* The Background Canvas */
-    #bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+    .app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
 
-    /* Optional: Grain texture for that "Antigravity" feel */
-    .grain {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: url('https://grainy-gradients.vercel.app/noise.svg');
-      opacity: 0.04; pointer-events: none; z-index: 2;
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
     }
 
     .center-content {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      text-align: center; z-index: 10; padding: 40px 60px; border-radius: 28px;
-      backdrop-filter: blur(20px); background: rgba(255,255,255,0.4);
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 10;
+      padding: 40px 60px;
+      border-radius: 28px;
+      backdrop-filter: blur(20px);
+      background: rgba(255,255,255,0.4);
       border: 1px solid rgba(0,0,0,0.05);
+      width: 90%;
+      max-width: 300px;
     }
 
-    h1 { font-size: clamp(48px, 10vw, 100px); font-weight: 500; letter-spacing: -2px; color: #111; }
+    h1 {
+      font-size: clamp(28px, 10vw, 100px);
+      font-weight: 500;
+      letter-spacing: -2px;
+      color: #111;
+      font-size: 40px;
+    }
 
     .portfolio {
-      display: inline-block; margin-top: 30px; padding: 12px 28px;
-      border-radius: 999px; background: #111; color: #fff;
-      text-decoration: none; font-size: 16px; transition: all 0.3s ease;
+      display: inline-block;
+      margin-top: 30px;
+      padding: 12px 28px;
+      border-radius: 999px;
+      background: #111;
+      color: #fff;
+      text-decoration: none;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      white-space: nowrap;
     }
 
-    .portfolio:hover { transform: translateY(-3px); opacity: 0.85; }
+    .portfolio:hover {
+      transform: translateY(-3px);
+      opacity: 0.85;
+    }
+
+    @media (max-width: 600px) {
+      .center-content { padding: 30px; }
+    }
   </style>
 </head>
 <body>
   <div class="app">
-    <div class="grain"></div>
     <canvas id="bg"></canvas>
     <div class="center-content">
-      <h1>ngakan</h1>
-      <a class="portfolio" href="https://page.ngakan.com">Portfolio</a>
+      <h1>Ngakan</h1>
+      <a class="portfolio" href="https://page.ngakan.com">not a portfolio yet</a>
     </div>
   </div>
   <script src="main.js"></script>
