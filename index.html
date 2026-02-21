@@ -1,168 +1,123 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ngakan</title>
+  <meta charset="utf-8" />
+  <title>ngakan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
+  <!-- Google Sans Flex -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@8..144,400..600&display=swap" rel="stylesheet">
 
-<!-- Favicon -->
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
 
-<style>
-* { margin:0; padding:0; box-sizing:border-box; }
+  <style>
+    :root {
+      --mouse-x: 50%;
+      --mouse-y: 50%;
+    }
 
-html, body {
-  height:100%;
-    background:#0a0a0f;
-      font-family:'Inter', sans-serif;
-        overflow:hidden;
-          color:white;
-          }
-          
-          canvas {
-            position:fixed;
-              top:0;
-                left:0;
-                }
-                
-                .center {
-                  position:absolute;
-                    top:50%;
-                      left:50%;
-                        transform:translate(-50%, -50%);
-                          text-align:center;
-                            padding:60px 80px;
-                              backdrop-filter: blur(18px);
-                                background: rgba(255,255,255,0.04);
-                                  border:1px solid rgba(255,255,255,0.08);
-                                    border-radius:20px;
-                                      box-shadow:
-                                          0 0 40px rgba(255,255,255,0.05),
-                                              inset 0 0 40px rgba(255,255,255,0.03);
-                                              }
-                                              
-                                              h1 {
-                                                font-weight:700;
-                                                  font-size: clamp(50px, 9vw, 100px);
-                                                    letter-spacing:4px;
-                                                      background: linear-gradient(90deg, #ffffff, #bdbdbd);
-                                                        -webkit-background-clip:text;
-                                                          -webkit-text-fill-color:transparent;
-                                                          }
-                                                          
-                                                          a {
-                                                            display:inline-block;
-                                                              margin-top:18px;
-                                                                font-weight:300;
-                                                                  letter-spacing:2px;
-                                                                    text-decoration:none;
-                                                                      color:rgba(255,255,255,0.6);
-                                                                        transition:0.4s ease;
-                                                                        }
-                                                                        
-                                                                        a:hover {
-                                                                          letter-spacing:4px;
-                                                                            color:white;
-                                                                            }
-                                                                            </style>
-                                                                            </head>
-                                                                            
-                                                                            <body>
-                                                                            
-                                                                            <canvas id="bg"></canvas>
-                                                                            
-                                                                            <div class="center">
-                                                                              <h1>ngakan</h1>
-                                                                                <a href="https://page.ngakan.com">links [but not yet]</a>
-                                                                                </div>
-                                                                                
-                                                                                <script>
-                                                                                const canvas = document.getElementById("bg");
-                                                                                const ctx = canvas.getContext("2d");
-                                                                                
-                                                                                let particles = [];
-                                                                                let mouse = { x: null, y: null };
-                                                                                
-                                                                                function resize() {
-                                                                                  canvas.width = window.innerWidth * devicePixelRatio;
-                                                                                    canvas.height = window.innerHeight * devicePixelRatio;
-                                                                                      ctx.setTransform(1,0,0,1,0,0);
-                                                                                        ctx.scale(devicePixelRatio, devicePixelRatio);
-                                                                                        }
-                                                                                        resize();
-                                                                                        window.addEventListener("resize", resize);
-                                                                                        
-                                                                                        window.addEventListener("mousemove", e => {
-                                                                                          mouse.x = e.clientX;
-                                                                                            mouse.y = e.clientY;
-                                                                                            });
-                                                                                            
-                                                                                            class Particle {
-                                                                                              constructor(layer) {
-                                                                                                  this.layer = layer;
-                                                                                                      this.depth = layer === 1 ? 0.3 : layer === 2 ? 0.6 : 1;
-                                                                                                          this.x = Math.random() * window.innerWidth;
-                                                                                                              this.y = Math.random() * window.innerHeight;
-                                                                                                                  this.baseX = this.x;
-                                                                                                                      this.baseY = this.y;
-                                                                                                                          this.size = Math.random() * 1.2 + 0.4 * this.depth;
-                                                                                                                              this.vx = 0;
-                                                                                                                                  this.vy = 0;
-                                                                                                                                    }
-                                                                                                                                    
-                                                                                                                                      update() {
-                                                                                                                                          if (mouse.x !== null) {
-                                                                                                                                                let dx = this.x - mouse.x;
-                                                                                                                                                      let dy = this.y - mouse.y;
-                                                                                                                                                            let dist = Math.sqrt(dx*dx + dy*dy);
-                                                                                                                                                                  let maxDist = 180 * this.depth;
-                                                                                                                                                                  
-                                                                                                                                                                        if (dist < maxDist) {
-                                                                                                                                                                                let force = (maxDist - dist) / maxDist;
-                                                                                                                                                                                        this.vx += (dx/dist) * force * 2 * this.depth;
-                                                                                                                                                                                                this.vy += (dy/dist) * force * 2 * this.depth;
-                                                                                                                                                                                                      }
-                                                                                                                                                                                                          }
-                                                                                                                                                                                                          
-                                                                                                                                                                                                              this.vx *= 0.94;
-                                                                                                                                                                                                                  this.vy *= 0.94;
-                                                                                                                                                                                                                  
-                                                                                                                                                                                                                      this.vx += (this.baseX - this.x) * 0.001 * this.depth;
-                                                                                                                                                                                                                          this.vy += (this.baseY - this.y) * 0.001 * this.depth;
-                                                                                                                                                                                                                          
-                                                                                                                                                                                                                              this.x += this.vx;
-                                                                                                                                                                                                                                  this.y += this.vy;
-                                                                                                                                                                                                                                    }
-                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                      draw() {
-                                                                                                                                                                                                                                          ctx.beginPath();
-                                                                                                                                                                                                                                              ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                                                                                                                                                                                                                                                  ctx.fillStyle = `rgba(255,255,255,${0.4 + this.depth*0.5})`;
-                                                                                                                                                                                                                                                      ctx.shadowBlur = 10 * this.depth;
-                                                                                                                                                                                                                                                          ctx.shadowColor = "white";
-                                                                                                                                                                                                                                                              ctx.fill();
-                                                                                                                                                                                                                                                                  ctx.shadowBlur = 0;
-                                                                                                                                                                                                                                                                    }
-                                                                                                                                                                                                                                                                    }
-                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                    function init() {
-                                                                                                                                                                                                                                                                      particles = [];
-                                                                                                                                                                                                                                                                        let density = Math.floor((window.innerWidth * window.innerHeight) / 12000);
-                                                                                                                                                                                                                                                                          for (let i = 0; i < density; i++) particles.push(new Particle(1));
-                                                                                                                                                                                                                                                                            for (let i = 0; i < density/2; i++) particles.push(new Particle(2));
-                                                                                                                                                                                                                                                                              for (let i = 0; i < density/3; i++) particles.push(new Particle(3));
-                                                                                                                                                                                                                                                                              }
-                                                                                                                                                                                                                                                                              init();
-                                                                                                                                                                                                                                                                              
-                                                                                                                                                                                                                                                                              function animate() {
-                                                                                                                                                                                                                                                                                ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-                                                                                                                                                                                                                                                                                  particles.forEach(p => { p.update(); p.draw(); });
-                                                                                                                                                                                                                                                                                    requestAnimationFrame(animate);
-                                                                                                                                                                                                                                                                                    }
-                                                                                                                                                                                                                                                                                    animate();
-                                                                                                                                                                                                                                                                                    </script>
-                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                    </body>
-                                                                                                                                                                                                                                                                                    </html>>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Google Sans Flex', sans-serif;
+      background: #ffffff;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+      color: #111;
+    }
+
+    /* Background depth layers */
+    .bg-layer {
+      position: absolute;
+      width: 200%;
+      height: 200%;
+      top: -50%;
+      left: -50%;
+      pointer-events: none;
+      transition: transform 0.1s linear;
+    }
+
+    .layer-1 {
+      background: radial-gradient(
+        circle at var(--mouse-x) var(--mouse-y),
+        rgba(0,0,0,0.05),
+        transparent 40%
+      );
+      z-index: 0;
+    }
+
+    .layer-2 {
+      background: radial-gradient(
+        circle at calc(var(--mouse-x) + 100px) calc(var(--mouse-y) + 100px),
+        rgba(0,0,0,0.03),
+        transparent 50%
+      );
+      z-index: 0;
+    }
+
+    /* Center container */
+    .container {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(40px);
+    }
+
+    .content {
+      text-align: center;
+      backdrop-filter: blur(20px);
+      background: rgba(255,255,255,0.4);
+      padding: 40px 60px;
+      border-radius: 24px;
+    }
+
+    h1 {
+      font-size: clamp(48px, 8vw, 100px);
+      font-weight: 500;
+      letter-spacing: -2px;
+    }
+
+    .portfolio {
+      display: inline-block;
+      margin-top: 30px;
+      padding: 12px 28px;
+      border-radius: 999px;
+      background: #111;
+      color: #fff;
+      text-decoration: none;
+      font-size: 16px;
+      transition: all 0.3s ease;
+    }
+
+    .portfolio:hover {
+      transform: translateY(-3px);
+      opacity: 0.85;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="bg-layer layer-1"></div>
+  <div class="bg-layer layer-2"></div>
+
+  <div class="container">
+    <div class="content">
+      <h1>ngakan</h1>
+      <a class="portfolio" href="https://page.ngakan.com">Portfolio</a>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
