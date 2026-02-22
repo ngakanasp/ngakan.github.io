@@ -16,34 +16,40 @@ document.addEventListener("DOMContentLoaded", () => {
     init(); // Fix: Re-init particles on resize
   }
 
+  canvas.style.touchAction = "none"; // Prevent scrolling on the canvas
+
   window.addEventListener("resize", resize);
-  window.addEventListener("mousemove", (e) => {
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
+
+  let mouseTimer;
+  function updateMouse(x, y) {
+    mouse.x = x;
+    mouse.y = y;
+
+    // Keep the "interaction" active for a moment on mobile/taps
+    clearTimeout(mouseTimer);
+    mouseTimer = setTimeout(() => {
+      mouse.x = null;
+      mouse.y = null;
+    }, 1500); // 1.5 seconds of "afterglow" for taps
+  }
+
+  // Pointer Events (Support mouse + touch + stylus)
+  window.addEventListener("pointerdown", (e) => {
+    updateMouse(e.clientX, e.clientY);
   });
-  window.addEventListener("mouseleave", () => {
-    mouse.x = null;
-    mouse.y = null;
+
+  window.addEventListener("pointermove", (e) => {
+    if (e.pointerType === "mouse" || e.buttons > 0) {
+      updateMouse(e.clientX, e.clientY);
+    }
   });
 
-  // Mobile Touch Support
-  window.addEventListener("touchstart", (e) => {
-    if (e.touches.length > 0) {
-      mouse.x = e.touches[0].clientX;
-      mouse.y = e.touches[0].clientY;
+  window.addEventListener("pointerup", () => {
+    // Only clear if it's a mouse (touch uses the timer for dispersal effect)
+    if (window.matchMedia("(pointer: fine)").matches) {
+      mouse.x = null;
+      mouse.y = null;
     }
-  }, { passive: true });
-
-  window.addEventListener("touchmove", (e) => {
-    if (e.touches.length > 0) {
-      mouse.x = e.touches[0].clientX;
-      mouse.y = e.touches[0].clientY;
-    }
-  }, { passive: true });
-
-  window.addEventListener("touchend", () => {
-    mouse.x = null;
-    mouse.y = null;
   });
 
   class Particle {
