@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
     draw() {
       ctx.beginPath();
       // Use layer for depth-based transparency
-      ctx.globalAlpha = 0.4 * this.layer; 
+      ctx.globalAlpha = 0.4 * this.layer;
       ctx.fillStyle = this.color;
       ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
       ctx.fill();
