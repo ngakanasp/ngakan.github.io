@@ -1,212 +1,372 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const canvas = document.getElementById("bg");
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
+/**
+ * System: Savanna Dynamics (Multilayer Flocking)
+ * Palette: Viridis
+ * Logic: Tight Cohesion, Stalking Predators, Staggered Energy
+ */
 
-  let particles = [];
-  let mouse = { x: null, y: null };
-  let time = 0;
+const VIRIDIS = ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'];
 
-  // Viridis Palette
-  const viridis = ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'];
+const CONFIG = {
+  boids: {
+    count: 140,
+    maxSpeed: 3.0,
+    maxForce: 0.05, // Significantly lower for creamy smoothness
+    perception: 180, // Larger view for better grouping
+    separationDist: 25,
+    cohesionStrength: 1.8,
+    alignmentStrength: 1.2,
+    boundaryMargin: 100,
+  },
+  layers: [
+    { scale: 1.0, count: 0.4, alpha: 0.8 }, // Close
+    { scale: 0.6, count: 0.4, alpha: 0.4 }, // Mid
+    { scale: 0.3, count: 0.2, alpha: 0.15 }, // Far
+  ],
+  predator: {
+    count: 2,
+    size: 3.5,
+    speed: 2.4, // Hunting speed
+    stalkSpeed: 0.8, // Observing speed
+    perception: 280,
+    maxEnergy: 2000, // Longer hunts
+    boundaryMargin: 100,
+  }
+};
 
-  function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    init(); // Fix: Re-init particles on resize
+class Vector {
+  constructor(x = 0, y = 0) {
+    this.x = x;
+    this.y = y;
+  }
+  add(v) { this.x += v.x; this.y += v.y; return this; }
+  sub(v) { this.x -= v.x; this.y -= v.y; return this; }
+  mult(n) { this.x *= n; this.y *= n; return this; }
+  div(n) { this.x /= n; this.y /= n; return this; }
+  mag() { return Math.sqrt(this.x * this.x + this.y * this.y); }
+  setMag(n) {
+    const m = this.mag();
+    if (m !== 0) { this.mult(n / m); }
+    return this;
+  }
+  limit(n) {
+    const m = this.mag();
+    if (m > n) { this.setMag(n); }
+    return this;
+  }
+  static dist(v1, v2) {
+    return Math.sqrt((v1.x - v2.x) ** 2 + (v1.y - v2.y) ** 2);
+  }
+  copy() { return new Vector(this.x, this.y); }
+}
+
+class Boid {
+  constructor(canvas, layer) {
+    this.canvas = canvas;
+    this.layer = layer;
+    this.position = new Vector(Math.random() * canvas.width, Math.random() * canvas.height);
+    this.velocity = new Vector((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4);
+    this.acceleration = new Vector();
+
+    this.size = 2.4 * layer.scale;
+    this.alpha = layer.alpha;
+    this.color = VIRIDIS[Math.floor(Math.random() * VIRIDIS.length)];
+    this.maxSpeed = CONFIG.boids.maxSpeed * (0.5 + 0.5 * layer.scale);
   }
 
-  canvas.style.touchAction = "none"; // Prevent scrolling on the canvas
+  // Smooth steering to stay inside boundaries
+  boundaries() {
+    const margin = CONFIG.boids.boundaryMargin;
+    const force = 0.2 * this.layer.scale;
+    if (this.position.x < margin) this.acceleration.x += force;
+    if (this.position.x > this.canvas.width - margin) this.acceleration.x -= force;
+    if (this.position.y < margin) this.acceleration.y += force;
+    if (this.position.y > this.canvas.height - margin) this.acceleration.y -= force;
 
-  window.addEventListener("resize", resize);
-
-  let mouseTimer;
-  function updateMouse(x, y) {
-    mouse.x = x;
-    mouse.y = y;
-
-    // Keep the "interaction" active for a moment on mobile/taps
-    clearTimeout(mouseTimer);
-    mouseTimer = setTimeout(() => {
-      mouse.x = null;
-      mouse.y = null;
-    }, 1500); // 1.5 seconds of "afterglow" for taps
+    // Hard limit to prevent going out of viewport
+    if (this.position.x < 0) this.position.x = 0;
+    if (this.position.x > this.canvas.width) this.position.x = this.canvas.width;
+    if (this.position.y < 0) this.position.y = 0;
+    if (this.position.y > this.canvas.height) this.position.y = this.canvas.height;
   }
 
-  // Pointer Events (Support mouse + touch + stylus)
-  window.addEventListener("pointerdown", (e) => {
-    updateMouse(e.clientX, e.clientY);
-  });
+  flock(boids, nearestPredator, mouse) {
+    let alignment = new Vector();
+    let cohesion = new Vector();
+    let separation = new Vector();
+    let flee = new Vector();
 
-  window.addEventListener("pointermove", (e) => {
-    if (e.pointerType === "mouse" || e.buttons > 0) {
-      updateMouse(e.clientX, e.clientY);
-    }
-  });
+    const perception = CONFIG.boids.perception * this.layer.scale;
+    let total = 0;
 
-  window.addEventListener("pointerup", () => {
-    // Only clear if it's a mouse (touch uses the timer for dispersal effect)
-    if (window.matchMedia("(pointer: fine)").matches) {
-      mouse.x = null;
-      mouse.y = null;
-    }
-  });
+    for (let other of boids) {
+      if (other !== this) {
+        const d = Vector.dist(this.position, other.position);
+        if (d < perception) {
+          alignment.add(other.velocity);
+          cohesion.add(other.position);
 
-  class Particle {
-    constructor(layer) {
-      this.layer = layer;
-      this.color = viridis[Math.floor(Math.random() * viridis.length)];
-
-      // Fixed characteristics
-      this.offset = Math.random() * Math.PI * 2;
-      this.phase = Math.random() * 1000;
-      this.baseSpeed = 0.4 + Math.random() * 1.2;
-      this.orbitRadius = 50 + Math.random() * 150;
-      this.orbitSpeed = (Math.random() - 0.5) * 0.02;
-
-      this.reset();
-    }
-
-    reset() {
-      this.x = Math.random() * canvas.width;
-      this.y = Math.random() * canvas.height;
-      this.size = Math.random() * (1.2 * this.layer) + 0.8;
-      this.width = this.size * 4;
-      this.height = this.size * 1.5;
-      this.vx = 0;
-      this.vy = 0;
-      this.angle = 0;
-
-      // Behavior state: 0-3 corners, 4 center
-      this.targetState = Math.floor(Math.random() * 5);
-      this.stateTimer = Math.random() * 300 + 200; // Frames before switching
-    }
-
-    update() {
-      const now = Date.now() * 0.001;
-      this.stateTimer--;
-
-      if (this.stateTimer <= 0) {
-        // Occasionally move to center, otherwise rotate through corners
-        if (Math.random() > 0.85) {
-          this.targetState = 4;
-        } else {
-          this.targetState = (this.targetState + 1) % 4;
-        }
-        this.stateTimer = Math.random() * 400 + 300;
-      }
-
-      // 1. Calculate Target Point
-      let tx, ty;
-      if (this.targetState === 4) {
-        // Center: Bee nest effect
-        const tRange = 0.15;
-        const pulse = 1 + Math.sin(now * 0.5) * 0.2;
-        tx = canvas.width * 0.5 + Math.cos(now * 0.8 + this.offset) * (this.orbitRadius * pulse);
-        ty = canvas.height * 0.5 + Math.sin(now * 0.8 + this.offset) * (this.orbitRadius * pulse);
-      } else {
-        // Corners: Orbit regions
-        const cx = (this.targetState === 1 || this.targetState === 2) ? 0.9 : 0.1;
-        const cy = (this.targetState === 2 || this.targetState === 3) ? 0.9 : 0.1;
-        const timeFactor = now * this.orbitSpeed;
-        tx = canvas.width * cx + Math.cos(timeFactor + this.offset) * this.orbitRadius;
-        ty = canvas.height * cy + Math.sin(timeFactor + this.offset) * this.orbitRadius;
-      }
-
-      // 2. Steering & Flow
-      const dx = tx - this.x;
-      const dy = ty - this.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      // Soft attraction
-      const attraction = 0.00025 * this.layer * (this.targetState === 4 ? 1.5 : 1);
-      this.vx += (dx / Math.max(dist, 1)) * attraction * dist;
-      this.vy += (dy / Math.max(dist, 1)) * attraction * dist;
-
-      // 3. Global Flow (Noise-like) - No Math.random here
-      const flowScale = 0.005;
-      const flowTime = now * 0.3;
-      const angle = (Math.sin(this.x * flowScale + flowTime) + Math.cos(this.y * flowScale + flowTime)) * Math.PI;
-      this.vx += Math.cos(angle) * 0.15;
-      this.vy += Math.sin(angle) * 0.15;
-
-      // 4. Mouse interaction
-      if (mouse.x !== null) {
-        const mdx = this.x - mouse.x;
-        const mdy = this.y - mouse.y;
-        const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
-        if (mdist < 200) {
-          const power = (200 - mdist) / 200;
-          this.vx += (mdx / mdist) * power * 0.8;
-          this.vy += (mdy / mdist) * power * 0.8;
+          if (d < CONFIG.boids.separationDist * this.layer.scale) {
+            let diff = this.position.copy().sub(other.position);
+            diff.div(d * d);
+            separation.add(diff);
+          }
+          total++;
         }
       }
+    }
 
-      // 5. Final Physics
-      this.vx *= 0.97; // Slightly higher friction for fluid look
-      this.vy *= 0.97;
+    if (total > 0) {
+      alignment.div(total).setMag(this.maxSpeed).sub(this.velocity).limit(CONFIG.boids.maxForce);
+      cohesion.div(total).sub(this.position).setMag(this.maxSpeed).sub(this.velocity).limit(CONFIG.boids.maxForce);
+      separation.div(total).setMag(this.maxSpeed).sub(this.velocity).limit(CONFIG.boids.maxForce);
+    }
 
-      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-      const maxSpeed = this.baseSpeed * (this.targetState === 4 ? 0.8 : 1.2) * this.layer;
-      if (speed > maxSpeed) {
-        this.vx = (this.vx / speed) * maxSpeed;
-        this.vy = (this.vy / speed) * maxSpeed;
+    // Savanna Logic: Flee from predator
+    if (nearestPredator && !nearestPredator.isRecharging) {
+      const d = Vector.dist(this.position, nearestPredator.position);
+      if (d < CONFIG.predator.perception * this.layer.scale) {
+        let diff = this.position.copy().sub(nearestPredator.position);
+        diff.setMag(this.maxSpeed * 3).sub(this.velocity).limit(CONFIG.boids.maxForce * 3);
+        flee.add(diff);
+      }
+    }
+
+    // Flee from mouse
+    if (mouse.x !== null) {
+      const d = Vector.dist(this.position, new Vector(mouse.x, mouse.y));
+      if (d < 150) {
+        let diff = this.position.copy().sub(new Vector(mouse.x, mouse.y));
+        diff.setMag(this.maxSpeed * 2.5).sub(this.velocity).limit(CONFIG.boids.maxForce * 5);
+        flee.add(diff);
+      }
+    }
+
+    this.acceleration.add(alignment.mult(CONFIG.boids.alignmentStrength));
+    this.acceleration.add(cohesion.mult(CONFIG.boids.cohesionStrength));
+    this.acceleration.add(separation.mult(2.0));
+    this.acceleration.add(flee.mult(4.0));
+  }
+
+  update() {
+    this.boundaries();
+
+    // Low-pass filter for acceleration to eliminate jitter
+    this.velocity.add(this.acceleration);
+    this.velocity.limit(this.maxSpeed);
+
+    // Friction/Smoothing: prevent harsh pivots
+    this.position.add(this.velocity);
+    this.acceleration.mult(0);
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.position.x, this.position.y);
+    ctx.rotate(Math.atan2(this.velocity.y, this.velocity.x));
+
+    ctx.globalAlpha = this.alpha;
+    ctx.fillStyle = this.color;
+
+    ctx.beginPath();
+    ctx.moveTo(this.size * 2.5, 0);
+    ctx.lineTo(-this.size, this.size * 0.8);
+    ctx.lineTo(-this.size, -this.size * 0.8);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+class Predator {
+  constructor(canvas, initialEnergyOffset = 0) {
+    this.canvas = canvas;
+    this.position = new Vector(Math.random() * canvas.width, Math.random() * canvas.height);
+    this.velocity = new Vector((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2);
+    this.acceleration = new Vector();
+    this.angle = Math.random() * Math.PI * 2;
+    this.energy = CONFIG.predator.maxEnergy - initialEnergyOffset;
+    this.isRecharging = false;
+    this.mode = 'stalk'; // stalk, hunt, recharge
+  }
+
+  // Smooth containment logic without "bouncing"
+  boundaries() {
+    const margin = CONFIG.predator.boundaryMargin;
+    const force = 0.08;
+    if (this.position.x < margin) this.acceleration.x += force;
+    if (this.position.x > this.canvas.width - margin) this.acceleration.x -= force;
+    if (this.position.y < margin) this.acceleration.y += force;
+    if (this.position.y > this.canvas.height - margin) this.acceleration.y -= force;
+  }
+
+  update(boids, otherPredators) {
+    if (this.isRecharging) {
+      this.mode = 'recharge';
+      this.energy += 3; // Fast recharge
+      this.velocity.mult(0.92);
+      if (this.energy >= CONFIG.predator.maxEnergy) {
+        this.isRecharging = false;
+        this.mode = 'stalk';
+      }
+    } else {
+      // Avoid other predators
+      otherPredators.forEach(other => {
+        if (other !== this) {
+          const d = Vector.dist(this.position, other.position);
+          if (d < 200) {
+            let repel = this.position.copy().sub(other.position).setMag(this.velocity.mag()).limit(0.1);
+            this.acceleration.add(repel);
+
+            // Coordination: If other is already recharging, try to stay awake
+            if (other.isRecharging && this.energy < 300) {
+              this.energy += 0.5; // Stagger recharge by delaying it
+            }
+          }
+        }
+      });
+
+      // Hunting/Stalking Logic
+      let target = this.findTarget(boids);
+      const isTargetClose = target && Vector.dist(this.position, target) < 200;
+
+      this.mode = isTargetClose ? 'hunt' : 'stalk';
+      const speed = this.mode === 'hunt' ? CONFIG.predator.speed : CONFIG.predator.stalkSpeed;
+
+      if (target) {
+        let steer = target.copy().sub(this.position).setMag(speed).sub(this.velocity).limit(0.06);
+        this.acceleration.add(steer);
+        this.energy -= (this.mode === 'hunt' ? 1.5 : 0.2);
       }
 
-      this.x += this.vx;
-      this.y += this.vy;
-      this.angle = Math.atan2(this.vy, this.vx);
+      // Organic wander
+      this.angle += (Math.random() - 0.5) * 0.15;
+      this.acceleration.add(new Vector(Math.cos(this.angle) * 0.05, Math.sin(this.angle) * 0.05));
 
-      // Bounce/Wrap gently
-      const margin = 100;
-      if (this.x < -margin) this.x = canvas.width + margin;
-      if (this.x > canvas.width + margin) this.x = -margin;
-      if (this.y < -margin) this.y = canvas.height + margin;
-      if (this.y > canvas.height + margin) this.y = -margin;
+      if (this.energy <= 0) this.isRecharging = true;
     }
 
-    draw() {
-      ctx.save();
-      ctx.translate(this.x, this.y);
-      ctx.rotate(this.angle);
+    this.boundaries();
+    this.velocity.add(this.acceleration);
+    this.velocity.limit(this.mode === 'recharge' ? 0.3 : CONFIG.predator.speed);
+    this.position.add(this.velocity);
+    this.acceleration.mult(0);
+  }
 
-      // Dynamic opacity based on speed
-      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-      const opacity = 0.15 + (speed * 0.15);
-
-      ctx.beginPath();
-      ctx.globalAlpha = opacity * this.layer;
-      ctx.fillStyle = this.color;
-
-      const r = this.height / 2;
-      ctx.roundRect(-this.width / 2, -this.height / 2, this.width, this.height, r);
-      ctx.fill();
-
-      ctx.restore();
+  findTarget(boids) {
+    let bestBoid = null;
+    let maxNeighbors = -1;
+    const step = 8;
+    for (let i = 0; i < boids.length; i += step) {
+      let b = boids[i];
+      let neighbors = 0;
+      for (let j = 0; j < boids.length; j += step * 2) {
+        if (Vector.dist(b.position, boids[j].position) < 80) neighbors++;
+      }
+      if (neighbors > maxNeighbors) {
+        maxNeighbors = neighbors;
+        bestBoid = b;
+      }
     }
+    return bestBoid ? bestBoid.position : null;
   }
 
-  function init() {
-    particles = [];
-    // Balanced distribution
-    for (let i = 0; i < 200; i++) particles.push(new Particle(1.0));
-    for (let i = 0; i < 150; i++) particles.push(new Particle(0.6));
-    for (let i = 0; i < 100; i++) particles.push(new Particle(0.3));
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.position.x, this.position.y);
+
+    const energyRatio = Math.max(0, this.energy / CONFIG.predator.maxEnergy);
+    const pulse = Math.sin(Date.now() * 0.005) * 3;
+
+    // Habitat Energy Aura (always visible, intensity indicates energy)
+    ctx.strokeStyle = `rgba(0, 0, 0, ${0.05 + energyRatio * 0.15})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, CONFIG.predator.size + 10 + (pulse * energyRatio), 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Core Predator
+    ctx.fillStyle = '#000000';
+    ctx.globalAlpha = this.isRecharging ? 0.2 : 0.9;
+    ctx.beginPath();
+    ctx.arc(0, 0, CONFIG.predator.size, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+class App {
+  constructor() {
+    window.appInstance = this;
+    this.canvas = document.getElementById('bg');
+    this.ctx = this.canvas.getContext('2d');
+    this.boids = [];
+    this.predators = [];
+    this.mouse = { x: null, y: null };
+
+    this.init();
+    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('pointermove', (e) => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; });
+    window.addEventListener('pointerleave', () => { this.mouse.x = null; this.mouse.y = null; });
+
+    this.isActive = true;
+    this.animate();
   }
 
-  function animate() {
-    // Subtle trail effect
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  stop() {
+    this.isActive = false;
+  }
 
-    particles.forEach(p => {
-      p.update();
-      p.draw();
+  start() {
+    if (this.isActive) return;
+    this.isActive = true;
+    this.animate();
+  }
+
+  resize() {
+    this.canvas.width = window.innerWidth;
+    this.canvas.height = window.innerHeight;
+  }
+
+  init() {
+    this.resize();
+    this.boids = [];
+    CONFIG.layers.forEach(l => {
+      const count = Math.floor(CONFIG.boids.count * l.count);
+      for (let i = 0; i < count; i++) this.boids.push(new Boid(this.canvas, l));
     });
 
-    requestAnimationFrame(animate);
+    this.predators = [];
+    for (let i = 0; i < CONFIG.predator.count; i++) {
+      // Stagger initial energy so they don't recharge at the same time
+      this.predators.push(new Predator(this.canvas, i * 800));
+    }
   }
 
-  resize();
-  animate();
-});
+  animate() {
+    if (!this.isActive) return;
+
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    this.predators.forEach(p => {
+      p.update(this.boids, this.predators);
+      p.draw(this.ctx);
+    });
+
+    this.boids.forEach(b => {
+      // Only avoid predators that are actively stalking or hunting
+      let activePredators = this.predators.filter(p => !p.isRecharging);
+      let nearest = activePredators.length > 0 ? activePredators.reduce((prev, curr) =>
+        Vector.dist(b.position, prev.position) < Vector.dist(b.position, curr.position) ? prev : curr) : null;
+
+      b.flock(this.boids, nearest, this.mouse);
+      b.update();
+      b.draw(this.ctx);
+    });
+
+    requestAnimationFrame(() => this.animate());
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => new App());
