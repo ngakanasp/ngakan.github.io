@@ -274,7 +274,7 @@
       </a>
     </div>
   </div>
-  <script src="main.js"></script>
+  <script src="savana.js"></script>
   <script>
     // Global Simulation Toggle
     const statusDot = document.getElementById('status-dot');
@@ -297,16 +297,24 @@
       `,
       pandemic: `
         <div class="legend-item">
-          <div class="legend-dot" style="background: #21918c"></div>
-          <span class="legend-label">Healthy</span>
+          <div class="legend-dot" style="background: #ffffff; border: 0.5px solid rgba(0,0,0,0.2)"></div>
+          <span class="legend-label">Healthy: <span id="count-HEALTHY">0</span></span>
         </div>
         <div class="legend-item">
           <div class="legend-dot" style="background: #440154"></div>
-          <span class="legend-label">Infected</span>
+          <span class="legend-label">Infected: <span id="count-INFECTED">0</span></span>
         </div>
         <div class="legend-item">
           <div class="legend-dot" style="background: #fde725"></div>
-          <span class="legend-label">Recovered</span>
+          <span class="legend-label">Recovered: <span id="count-RECOVERED">0</span></span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #222222"></div>
+          <span class="legend-label">Dead: <span id="count-DEAD">0</span></span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #21918c"></div>
+          <span class="legend-label">Paramedic: <span id="count-PARAMEDIC">0</span></span>
         </div>
       `
     };

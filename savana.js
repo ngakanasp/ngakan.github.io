@@ -73,20 +73,22 @@ class Boid {
     this.maxSpeed = CONFIG.boids.maxSpeed * (0.5 + 0.5 * layer.scale);
   }
 
-  // Smooth steering to stay inside boundaries
   boundaries() {
-    const margin = CONFIG.boids.boundaryMargin;
-    const force = 0.2 * this.layer.scale;
-    if (this.position.x < margin) this.acceleration.x += force;
-    if (this.position.x > this.canvas.width - margin) this.acceleration.x -= force;
-    if (this.position.y < margin) this.acceleration.y += force;
-    if (this.position.y > this.canvas.height - margin) this.acceleration.y -= force;
+    const center = new Vector(this.canvas.width / 2, this.canvas.height / 2);
+    const dist = Vector.dist(this.position, center);
+    const maxDist = Math.max(this.canvas.width, this.canvas.height) * 0.42;
 
-    // Hard limit to prevent going out of viewport
-    if (this.position.x < 0) this.position.x = 0;
-    if (this.position.x > this.canvas.width) this.position.x = this.canvas.width;
-    if (this.position.y < 0) this.position.y = 0;
-    if (this.position.y > this.canvas.height) this.position.y = this.canvas.height;
+    if (dist > maxDist) {
+      let pullCenter = center.copy().sub(this.position);
+      pullCenter.setMag(0.12 * (dist / maxDist));
+      this.acceleration.add(pullCenter);
+    }
+
+    // Hard limit safety net
+    if (this.position.x < 0) this.position.x = 2;
+    if (this.position.x > this.canvas.width) this.position.x = this.canvas.width - 2;
+    if (this.position.y < 0) this.position.y = 2;
+    if (this.position.y > this.canvas.height) this.position.y = this.canvas.height - 2;
   }
 
   flock(boids, nearestPredator, mouse) {
@@ -143,8 +145,17 @@ class Boid {
 
     this.acceleration.add(alignment.mult(CONFIG.boids.alignmentStrength));
     this.acceleration.add(cohesion.mult(CONFIG.boids.cohesionStrength));
-    this.acceleration.add(separation.mult(2.0));
-    this.acceleration.add(flee.mult(4.0));
+    this.acceleration.add(separation.mult(2.5)); // Increased for clarity
+    this.acceleration.add(flee.mult(4.5));
+
+    // Dynamic Wander: Organic exploration
+    const wanderForce = new Vector(Math.cos(Date.now() * 0.001 + this.position.x * 0.01), Math.sin(Date.now() * 0.001 + this.position.y * 0.01));
+    this.acceleration.add(wanderForce.mult(0.05));
+
+    // Subtle bias towards center to prevent edge huddling
+    const center = new Vector(this.canvas.width / 2, this.canvas.height / 2);
+    let centerPull = center.sub(this.position).setMag(0.02);
+    this.acceleration.add(centerPull);
   }
 
   update() {
@@ -192,12 +203,18 @@ class Predator {
 
   // Smooth containment logic without "bouncing"
   boundaries() {
-    const margin = CONFIG.predator.boundaryMargin;
-    const force = 0.08;
-    if (this.position.x < margin) this.acceleration.x += force;
-    if (this.position.x > this.canvas.width - margin) this.acceleration.x -= force;
-    if (this.position.y < margin) this.acceleration.y += force;
-    if (this.position.y > this.canvas.height - margin) this.acceleration.y -= force;
+    const margin = Math.min(120, Math.min(this.canvas.width, this.canvas.height) * 0.2);
+    const force = 0.15;
+    if (this.position.x < margin) this.acceleration.x += force * (1 - this.position.x / margin);
+    if (this.position.x > this.canvas.width - margin) this.acceleration.x -= force * (1 - (this.canvas.width - this.position.x) / margin);
+    if (this.position.y < margin) this.acceleration.y += force * (1 - this.position.y / margin);
+    if (this.position.y > this.canvas.height - margin) this.acceleration.y -= force * (1 - (this.canvas.height - this.position.y) / margin);
+
+    // Hard limit safety net
+    if (this.position.x < 0) this.position.x = 2;
+    if (this.position.x > this.canvas.width) this.position.x = this.canvas.width - 2;
+    if (this.position.y < 0) this.position.y = 2;
+    if (this.position.y > this.canvas.height) this.position.y = this.canvas.height - 2;
   }
 
   update(boids, otherPredators) {
@@ -327,6 +344,12 @@ class App {
   resize() {
     this.canvas.width = window.innerWidth;
     this.canvas.height = window.innerHeight;
+
+    // Clamp existing entities to new bounds
+    [...this.boids, ...this.predators].forEach(e => {
+      if (e.position.x > this.canvas.width) e.position.x = this.canvas.width;
+      if (e.position.y > this.canvas.height) e.position.y = this.canvas.height;
+    });
   }
 
   init() {
