@@ -17,8 +17,8 @@
     :root {
       --bg-color: #ffffff98;
       --text-color: #000000;
-      --glass-bg: rgba(255, 255, 255, 0.096);
-      --glass-border: rgba(255, 255, 255, 0.5);
+      --glass-bg: rgba(255, 255, 255, 0.03);
+      --glass-border: rgba(255, 255, 255, 0.1);
       --mono-font: 'Google Sans Flex', sans-serif;
     }
 
@@ -70,7 +70,6 @@
       left: 50%;
       transform: translateX(-50%);
       width: calc(100% - 48px);
-      max-width: 1200px;
       height: 60px;
       z-index: 10;
 
@@ -80,8 +79,8 @@
       padding: 0 32px;
 
       background: var(--glass-bg);
-      backdrop-filter: blur(28px) saturate(180%);
-      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      backdrop-filter: blur(12px) saturate(150%);
+      -webkit-backdrop-filter: blur(12px) saturate(150%);
       border: 1px solid var(--glass-border);
       border-radius: 24px;
       box-shadow:
@@ -242,7 +241,6 @@
         padding: 0 20px;
         height: 56px;
         bottom: calc(16px + env(safe-area-inset-bottom));
-        width: calc(100% - 32px);
       }
 
       .legend {
