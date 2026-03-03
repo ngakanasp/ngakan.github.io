@@ -215,6 +215,48 @@
       transition: opacity 0.4s ease;
     }
 
+    .slider-container {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      pointer-events: auto;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 140px;
+      background: transparent;
+    }
+
+    input[type=range]:focus {
+      outline: none;
+    }
+
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 2px;
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.08);
+      border-radius: 1px;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      height: 8px;
+      width: 8px;
+      border-radius: 50%;
+      background: #000000;
+      cursor: pointer;
+      -webkit-appearance: none;
+      margin-top: -3px;
+      transition: transform 0.2s ease;
+    }
+
+    input[type=range]:active::-webkit-slider-thumb {
+      transform: scale(1.4);
+    }
+
     .legend-item {
       display: flex;
       align-items: center;
@@ -308,6 +350,13 @@
           <div style="font-size: 10px; opacity: 0.5; margin-left: 17px; text-transform: uppercase; letter-spacing: 0.05em;">
             neonate: <span id="indiv-neonate">0</span>  •  juvenile: <span id="indiv-juvenile">0</span>  •  mature: <span id="indiv-mature">0</span>
           </div>
+        </div>
+        <div class="slider-container">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="legend-dot" style="background: #000000"></div>
+            <span class="legend-label" style="opacity: 0.9; text-transform: uppercase; font-weight: 600;">Population Cap: <span id="val-max-pop">300</span></span>
+          </div>
+          <input type="range" id="slider-max-pop" min="100" max="1000" value="300" step="10" style="margin-left: 17px;">
         </div>
       `,
     };

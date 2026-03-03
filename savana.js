@@ -195,7 +195,7 @@
       this.acceleration.add(centerPull);
     }
 
-    update() {
+    update(overpopFactor = 0) {
       this.age++;
       if (this.reproCooldown > 0) this.reproCooldown--;
       this.updateStage();
@@ -208,7 +208,11 @@
       }
 
       this.velocity.add(this.acceleration);
-      this.velocity.limit(this.maxSpeed);
+
+      // Lethargy: Boids slow down when resources are scarce
+      const dynamicMaxSpeed = this.maxSpeed * (1 - Math.min(0.4, overpopFactor * 0.15));
+      this.velocity.limit(dynamicMaxSpeed);
+
       this.position.add(this.velocity);
       this.acceleration.mult(0);
       this.wrap();
@@ -227,13 +231,20 @@
       }
     }
 
-    canReproduce() {
+    canReproduce(abundanceFactor = 0, overpopFactor = 0) {
+      let reproChance = this.trait.reproChance * (1 + abundanceFactor * 2.5);
+
+      // Scarcity: Suppress birth rates when over capacity
+      if (overpopFactor > 0) {
+        reproChance *= (1 / (1 + overpopFactor * 2.5));
+      }
+
       return (
         this.stage === 'MATURE' &&
         this.age > CONFIG.stages.MATURE.reproductionAge &&
         this.reproCooldown === 0 &&
         this.hasPartner &&
-        Math.random() < this.trait.reproChance
+        Math.random() < reproChance
       );
     }
 
@@ -276,6 +287,7 @@
 
       this.init();
       this.setupInteraction();
+      this.setupSlider();
       window.addEventListener('resize', () => this.resize());
       this.animate();
     }
@@ -342,6 +354,42 @@
       this.animate();
     }
 
+    setupInteraction() {
+      const updatePos = (x, y) => {
+        const rect = this.canvas.getBoundingClientRect();
+        this.interactionPos = new Vector(x - rect.left, y - rect.top);
+      };
+
+      window.addEventListener('mousemove', (e) => updatePos(e.clientX, e.clientY));
+      window.addEventListener('mouseleave', () => this.interactionPos = null);
+
+      window.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 0) {
+          updatePos(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+
+      window.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 0) {
+          updatePos(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+
+      window.addEventListener('touchend', () => this.interactionPos = null);
+    }
+
+    setupSlider() {
+      const slider = document.getElementById('slider-max-pop');
+      const valDisplay = document.getElementById('val-max-pop');
+      if (slider && valDisplay) {
+        slider.addEventListener('input', (e) => {
+          const val = parseInt(e.target.value);
+          CONFIG.maxPopulation = val;
+          valDisplay.textContent = val;
+        });
+      }
+    }
+
     resize() {
       this.canvas.width = window.innerWidth;
       this.canvas.height = window.innerHeight;
@@ -354,20 +402,25 @@
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
       const newBoids = [];
+      const diff = this.boids.length - CONFIG.maxPopulation;
+      const overpopFactor = Math.max(0, diff / 30); // Softer correction
+      const abundanceFactor = Math.max(0, -diff / 100);
 
       for (let i = this.boids.length - 1; i >= 0; i--) {
         const b = this.boids[i];
         b.flock(this.boids);
-        b.update();
+        b.update(overpopFactor);
         b.draw(this.ctx);
 
-        if (b.canReproduce() && this.boids.length < CONFIG.maxPopulation) {
+        if (b.canReproduce(abundanceFactor, overpopFactor) && this.boids.length < CONFIG.maxPopulation) {
           newBoids.push(b.reproduce());
         }
 
         // Natural death cycle: Higher for Interdependent (Group), lower for Individuals
         const isAdult = b.stage === 'MATURE' && b.age > CONFIG.stages.MATURE.reproductionAge;
-        const deathChance = isAdult ? b.trait.mortality : 0.00005;
+        const baseDeath = isAdult ? b.trait.mortality : 0.00005;
+        // Softer overpopulation mortality
+        const deathChance = (baseDeath * (1 - Math.min(0.6, abundanceFactor))) + (overpopFactor * 0.005);
 
         if (Math.random() < deathChance || b.age > 20000) {
           this.boids.splice(i, 1);

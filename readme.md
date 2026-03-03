@@ -57,5 +57,6 @@ Key global variables that control the ecosystem's balance:
 
 ## 🕹️ Interaction & Controls
 - **Tactile Avoidance**: Move your mouse or drag your finger on the screen to "scatter" the boids. They will flee from the interaction point and reform their groups once you stop.
+- **Population Cap Control**: A sleek interactive slider in the legend allows you to dynamically adjust the maximum population from 100 to 1000.
 - **Live Metrics**: The bottom-left legend tracks real-time population counts for both traits across all life stages.
 - **Status Toggle**: The status dot beside the header serves as a visual indicator for future behavioral overrides.
