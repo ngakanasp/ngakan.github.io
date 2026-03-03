@@ -298,11 +298,11 @@
             <div class="legend-dot" style="background: #21918c"></div>
             <div class="legend-dot" style="background: #fde725"></div>
           </div>
-          <span class="legend-label">Population</span>
+          <span class="legend-label">Population: <span id="count-population">0</span></span>
         </div>
         <div class="legend-item">
           <div class="legend-dot" style="background: #000000"></div>
-          <span class="legend-label">Predator</span>
+          <span class="legend-label">Predator: <span id="count-predator">0</span></span>
         </div>
       `,
       pandemic: `
@@ -381,6 +381,8 @@
         // Restart boids
         if (window.appInstance) {
           window.appInstance.start();
+        } else if (window.App) {
+          window.appInstance = new window.App();
         }
       }
     });
