@@ -43,6 +43,7 @@
       position: relative;
       width: 100vw;
       height: 100vh;
+      height: 100dvh;
     }
 
     canvas {
@@ -56,7 +57,7 @@
 
     .bottom-bar {
       position: absolute;
-      bottom: 24px;
+      bottom: calc(24px + env(safe-area-inset-bottom));
       left: 50%;
       transform: translateX(-50%);
       width: calc(100% - 48px);
@@ -191,7 +192,7 @@
 
     .legend {
       position: absolute;
-      bottom: 104px;
+      bottom: calc(104px + env(safe-area-inset-bottom));
       left: 32px;
       z-index: 10;
       display: flex;
@@ -231,13 +232,13 @@
       .bottom-bar {
         padding: 0 20px;
         height: 56px;
-        bottom: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
         width: calc(100% - 32px);
       }
 
       .legend {
         left: 20px;
-        bottom: 84px;
+        bottom: calc(84px + env(safe-area-inset-bottom));
       }
 
       h1 {
