@@ -293,98 +293,38 @@
 
     const LEGENDS = {
       flock: `
-        <div class="legend-item">
-          <div class="legend-colors">
-            <div class="legend-dot" style="background: #21918c"></div>
-            <div class="legend-dot" style="background: #fde725"></div>
+        <div class="legend-item" style="margin-bottom: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="legend-dot" style="background: #3b528b"></div>
+            <span class="legend-label" style="opacity: 0.9; text-transform: uppercase; font-weight: 600;">Interdependent: <span id="count-group">0</span></span>
           </div>
-          <span class="legend-label">Population: <span id="count-population">0</span></span>
+          <div style="font-size: 10px; opacity: 0.5; margin-left: 17px; text-transform: uppercase; letter-spacing: 0.05em;">
+            neonate: <span id="group-neonate">0</span>  •  juvenile: <span id="group-juvenile">0</span>  •  mature: <span id="group-mature">0</span>
+          </div>
         </div>
-        <div class="legend-item">
-          <div class="legend-dot" style="background: #000000"></div>
-          <span class="legend-label">Predator: <span id="count-predator">0</span></span>
+        <div class="legend-item" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="legend-dot" style="background: #fde725"></div>
+            <span class="legend-label" style="opacity: 0.9; text-transform: uppercase; font-weight: 600;">Individual: <span id="count-individual">0</span></span>
+          </div>
+          <div style="font-size: 10px; opacity: 0.5; margin-left: 17px; text-transform: uppercase; letter-spacing: 0.05em;">
+            neonate: <span id="indiv-neonate">0</span>  •  juvenile: <span id="indiv-juvenile">0</span>  •  mature: <span id="indiv-mature">0</span>
+          </div>
         </div>
       `,
-      pandemic: `
-        <div class="legend-item">
-          <div class="legend-dot" style="background: #ffffff; border: 0.5px solid rgba(0,0,0,0.2)"></div>
-          <span class="legend-label">Healthy: <span id="count-HEALTHY">0</span></span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-dot" style="background: #440154"></div>
-          <span class="legend-label">Infected: <span id="count-INFECTED">0</span></span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-dot" style="background: #fde725"></div>
-          <span class="legend-label">Recovered: <span id="count-RECOVERED">0</span></span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-dot" style="background: #222222"></div>
-          <span class="legend-label">Dead: <span id="count-DEAD">0</span></span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-dot" style="background: #21918c"></div>
-          <span class="legend-label">Paramedic: <span id="count-PARAMEDIC">0</span></span>
-        </div>
-      `
     };
 
     function updateLegend() {
-      legend.style.opacity = '0';
-      setTimeout(() => {
-        legend.innerHTML = LEGENDS[currentSimulation];
-        legend.style.opacity = '0.8';
-      }, 300);
+      legend.innerHTML = LEGENDS.flock;
+      legend.style.opacity = '0.8';
     }
 
     // Initialize legend
     updateLegend();
 
-    statusDot.addEventListener('click', async () => {
+    statusDot.addEventListener('click', () => {
       statusDot.classList.toggle('active-alt');
-
-      if (currentSimulation === 'flock') {
-        currentSimulation = 'pandemic';
-        updateLegend();
-        console.log('Switching to Pandemic simulation...');
-
-        // Stop the boid animation
-        if (window.appInstance) {
-          window.appInstance.stop();
-        }
-
-        // Load and start pandemic if not already loaded
-        if (!window.PandemicApp) {
-          const script = document.createElement('script');
-          script.src = 'pandemic.js';
-          script.onload = () => {
-            window.pandemicInstance = new window.PandemicApp();
-          };
-          document.body.appendChild(script);
-        } else {
-          if (!window.pandemicInstance) {
-            window.pandemicInstance = new window.PandemicApp();
-          } else {
-            window.pandemicInstance.start();
-          }
-        }
-      } else {
-        currentSimulation = 'flock';
-        updateLegend();
-        console.log('Switching to Boid simulation...');
-
-        // Stop pandemic
-        if (window.pandemicInstance) {
-          window.pandemicInstance.stop();
-        }
-
-        // Restart boids
-        if (window.appInstance) {
-          window.appInstance.start();
-        } else if (window.App) {
-          window.appInstance = new window.App();
-        }
-      }
+      // Placeholder for future behavior changes
     });
 
     // Provide instance access
