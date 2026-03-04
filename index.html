@@ -15,7 +15,7 @@
 
   <style>
     :root {
-      --bg-color: #ffffff98;
+      --bg-color: #ffffff;
       --text-color: #000000;
       --glass-bg: rgba(255, 255, 255, 0.03);
       --glass-border: rgba(255, 255, 255, 0.1);
@@ -26,7 +26,9 @@
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      font-family: 'Google Sans Flex', sans-serif;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     html,
@@ -36,14 +38,14 @@
       overflow: hidden;
       overscroll-behavior: none;
       /* Disables pull-to-refresh */
-      background: var(--bg-color);
+      background: #000000;
+      /* Body stays black for corners */
       color: var(--text-color);
-      font-family: 'Google Sans Flex', sans-serif;
-      user-select: none;
-      -webkit-user-select: none;
-      /* Safari mobile */
-      -webkit-touch-callout: none;
-      /* Disable long-press context menu */
+    }
+
+    /* Remove the old mode transition to keep corners static */
+    body.apocalyptic-mode {
+      background: #000000;
     }
 
     .app {
@@ -51,35 +53,36 @@
       width: 100vw;
       height: 100vh;
       height: 100dvh;
-      transition: box-shadow 0.6s ease;
+      transition: border-radius 1.2s cubic-bezier(0.65, 0, 0.35, 1);
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      background: #ffffff;
+      /* Solid white base for the ripple contrast */
     }
 
-    .app.apocalyptic::after {
-      content: '';
+    .app.apocalyptic {
+      border-radius: 10px;
+    }
+
+    .apocalypse-overlay {
       position: absolute;
       top: 0;
       left: 0;
-      right: 0;
-      bottom: 0;
-      box-shadow: inset 0 0 40px rgba(90, 43, 63, 0.4);
-      border-radius: 10px;
+      width: 100%;
+      height: 100%;
       pointer-events: none;
-      z-index: 9999;
-      animation: border-glow 4s ease-in-out infinite;
+      z-index: 0;
+      /* Above app background, behind canvas */
+      background: #000000;
+      clip-path: circle(0% at var(--spawn-x, 50%) var(--spawn-y, 50%));
+      transition: clip-path 1.2s cubic-bezier(0.65, 0, 0.35, 1);
+      will-change: clip-path;
     }
 
-    @keyframes border-glow {
-      0% {
-        opacity: 0.6;
-      }
-
-      50% {
-        opacity: 1;
-      }
-
-      100% {
-        opacity: 0.6;
-      }
+    .app.apocalyptic .apocalypse-overlay {
+      clip-path: circle(150% at var(--spawn-x, 50%) var(--spawn-y, 50%));
     }
 
     canvas {
@@ -90,7 +93,7 @@
       height: 100%;
       z-index: 1;
       touch-action: none;
-      /* Captures all touch events for the simulation */
+      /* Background handled by overlay behind it */
     }
 
     .bottom-bar {
@@ -129,6 +132,53 @@
       letter-spacing: -0.02em;
     }
 
+    /* Unified Transition Rule for UI Elements */
+    .brand,
+    .portfolio,
+    .legend,
+    .slider-container,
+    .status-dot,
+    input[type=range]::-webkit-slider-runnable-track,
+    input[type=range]::-webkit-slider-thumb {
+      transition:
+        color 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.2s,
+        background 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.2s,
+        stroke 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.2s,
+        border-color 0.8s ease 0.2s,
+        box-shadow 0.8s ease 0.2s,
+        opacity 0.8s ease;
+    }
+
+    /* Range Slider Styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    input[type=range]::-webkit-slider-runnable-track {
+      background: #000000;
+      height: 1px;
+      border: none;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: #000000;
+      border-radius: 50%;
+      margin-top: -6.5px;
+      /* Centered on 1px track */
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      border: none;
+    }
+
     .status-dot {
       width: 7px;
       height: 7px;
@@ -137,7 +187,8 @@
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
       animation: pulse 2s infinite;
       cursor: pointer;
-      transition: transform 0.3s ease, background 0.5s ease, box-shadow 0.5s ease;
+      /* transform transition is instant/standard, background is grouped above */
+      transition: transform 0.3s ease;
       position: relative;
       z-index: 100;
     }
@@ -151,6 +202,7 @@
       box-shadow: 0 0 15px rgba(33, 145, 140, 0.4);
     }
 
+    /* Pulse for Normal Mode */
     @keyframes pulse {
       0% {
         opacity: 0.4;
@@ -165,38 +217,33 @@
       }
     }
 
-    @keyframes pulse-red {
+    /* Glowy White Pulse for Apocalyptic Mode */
+    @keyframes pulse-white {
       0% {
-        background: #5a2b3f;
-        box-shadow: 0 0 5px #5a2b3f;
+        background: #ffffff;
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
       }
 
       50% {
-        background: #3d1d2b;
-        box-shadow: 0 0 15px #5a2b3f;
+        background: #ffffff;
+        box-shadow: 0 0 24px rgba(255, 255, 255, 1);
       }
 
       100% {
-        background: #5a2b3f;
-        box-shadow: 0 0 5px #5a2b3f;
+        background: #ffffff;
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
       }
     }
 
     .app.apocalyptic .status-dot {
-      animation: pulse-red 1s infinite;
-      background: #5a2b3f;
+      animation: pulse-white 1.2s ease-in-out infinite;
+      background: #ffffff;
     }
 
-    .app.apocalyptic .bottom-bar {
-      background: #211b2f;
-      border: none;
-      color: #ffffff;
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-    }
-
-    .app.apocalyptic .portfolio {
+    .app.apocalyptic .brand,
+    .app.apocalyptic .portfolio,
+    .app.apocalyptic .legend,
+    .app.apocalyptic .slider-container {
       color: #ffffff;
     }
 
@@ -205,21 +252,20 @@
     }
 
     .app.apocalyptic .portfolio-arrow {
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      box-shadow: none;
+      border-color: rgba(255, 255, 255, 0.2);
     }
 
-    .app.apocalyptic .legend {
-      /* Remove color change, keep it original or specifically black */
-      opacity: 1;
+    .app.apocalyptic .legend-dot.pop-cap-dot {
+      background: #ffffff !important;
     }
 
     .app.apocalyptic input[type=range]::-webkit-slider-runnable-track {
-      background: rgba(0, 0, 0, 0.15);
+      background: #ffffff;
     }
 
     .app.apocalyptic input[type=range]::-webkit-slider-thumb {
-      background: #5a2b3f;
+      background: #ffffff;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
     }
 
     .portfolio {
@@ -232,8 +278,8 @@
       align-items: center;
       gap: 12px;
       padding: 6px 4px;
-      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
       opacity: 0.8;
+      /* Transitions handled by unified rule above */
     }
 
     .portfolio:hover {
@@ -269,7 +315,8 @@
       justify-content: center;
       border: 1px solid rgba(0, 0, 0, 0.1);
       border-radius: 50%;
-      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      /* Specific hover transition kept */
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .portfolio:hover .portfolio-arrow {
@@ -298,7 +345,7 @@
       text-transform: uppercase;
       opacity: 0.8;
       pointer-events: none;
-      transition: opacity 0.4s ease;
+      /* Color transition handled by unified rule */
     }
 
     .slider-container {
@@ -389,6 +436,7 @@
 
 <body>
   <div class="app">
+    <div class="apocalypse-overlay"></div>
     <canvas id="bg"></canvas>
     <div class="legend" id="legend">
       <!-- Content populated by JS -->
@@ -439,7 +487,7 @@
         </div>
         <div class="slider-container">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <div class="legend-dot" style="background: #000000"></div>
+            <div class="legend-dot pop-cap-dot" style="background: #000000"></div>
             <span class="legend-label" style="opacity: 0.9; text-transform: uppercase; font-weight: 600;">Population Cap: <span id="val-max-pop">300</span></span>
           </div>
           <input type="range" id="slider-max-pop" min="100" max="1000" value="300" step="10" style="margin-left: 17px;">
@@ -455,11 +503,17 @@
     // Initialize legend
     updateLegend();
 
-    statusDot.addEventListener('click', () => {
+    statusDot.addEventListener('click', (e) => {
+      const rect = statusDot.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+
+      document.documentElement.style.setProperty('--spawn-x', `${x}px`);
+      document.documentElement.style.setProperty('--spawn-y', `${y}px`);
+
       statusDot.classList.toggle('active-alt');
       document.querySelector('.app').classList.toggle('apocalyptic');
       document.body.classList.toggle('apocalyptic-mode');
-      // Placeholder for future mutation behavior changes in savana.js
     });
 
     // Provide instance access

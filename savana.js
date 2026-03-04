@@ -280,10 +280,11 @@
       window.appInstance = this;
       this.canvas = document.getElementById('bg');
       if (!this.canvas) return;
-      this.ctx = this.canvas.getContext('2d', { alpha: false });
+      this.ctx = this.canvas.getContext('2d', { alpha: true });
       this.boids = [];
       this.isActive = true;
       this.interactionPos = null;
+      this.bgAlpha = 0; // 0 for white, 1 for muted gray
 
       this.init();
       this.setupInteraction();
@@ -398,9 +399,7 @@
     animate() {
       if (!this.isActive) return;
 
-      const isApocalyptic = document.querySelector('.app')?.classList.contains('apocalyptic');
-      this.ctx.fillStyle = isApocalyptic ? '#f2f2f2' : '#ffffff';
-      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
       const newBoids = [];
       const diff = this.boids.length - CONFIG.maxPopulation;
