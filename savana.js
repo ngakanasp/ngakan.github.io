@@ -398,7 +398,8 @@
     animate() {
       if (!this.isActive) return;
 
-      this.ctx.fillStyle = '#ffffff';
+      const isApocalyptic = document.querySelector('.app')?.classList.contains('apocalyptic');
+      this.ctx.fillStyle = isApocalyptic ? '#f2f2f2' : '#ffffff';
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
       const newBoids = [];
