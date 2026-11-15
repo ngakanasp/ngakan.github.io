@@ -12,520 +12,89 @@
     rel="stylesheet">
 
   <link rel="shortcut icon" href="favicon.svg" type="image/svg+xml">
-
-  <style>
-    :root {
-      --bg-color: #ffffff;
-      --text-color: #000000;
-      --glass-bg: rgba(255, 255, 255, 0.03);
-      --glass-border: rgba(255, 255, 255, 0.1);
-      --mono-font: 'Google Sans Flex', sans-serif;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      font-family: 'Google Sans Flex', sans-serif;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-
-    html,
-    body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      overscroll-behavior: none;
-      /* Disables pull-to-refresh */
-      background: #000000;
-      /* Body stays black for corners */
-      color: var(--text-color);
-    }
-
-    /* Remove the old mode transition to keep corners static */
-    body.apocalyptic-mode {
-      background: #000000;
-    }
-
-    .app {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      height: 100dvh;
-      transition: border-radius 1.2s cubic-bezier(0.65, 0, 0.35, 1);
-      overflow: hidden;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-touch-callout: none;
-      background: #ffffff;
-      /* Solid white base for the ripple contrast */
-    }
-
-    .app.apocalyptic {
-      border-radius: 10px;
-    }
-
-    .apocalypse-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 0;
-      /* Above app background, behind canvas */
-      background: #000000;
-      clip-path: circle(0% at var(--spawn-x, 50%) var(--spawn-y, 50%));
-      transition: clip-path 1.2s cubic-bezier(0.65, 0, 0.35, 1);
-      will-change: clip-path;
-    }
-
-    .app.apocalyptic .apocalypse-overlay {
-      clip-path: circle(150% at var(--spawn-x, 50%) var(--spawn-y, 50%));
-    }
-
-    canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 1;
-      touch-action: none;
-      /* Background handled by overlay behind it */
-    }
-
-    .bottom-bar {
-      position: absolute;
-      bottom: calc(24px + env(safe-area-inset-bottom));
-      left: 50%;
-      transform: translateX(-50%);
-      width: calc(100% - 48px);
-      height: 60px;
-      z-index: 10;
-
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 32px;
-
-      background: var(--glass-bg);
-      backdrop-filter: blur(12px) saturate(150%);
-      -webkit-backdrop-filter: blur(12px) saturate(150%);
-      border: 1px solid var(--glass-border);
-      border-radius: 24px;
-      box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.04),
-        0 1px 2px rgba(0, 0, 0, 0.02);
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    h1 {
-      font-size: 18px;
-      font-weight: 500;
-      letter-spacing: -0.02em;
-    }
-
-    /* Unified Transition Rule for UI Elements */
-    .brand,
-    .portfolio,
-    .legend,
-    .slider-container,
-    .status-dot,
-    input[type=range]::-webkit-slider-runnable-track,
-    input[type=range]::-webkit-slider-thumb {
-      transition:
-        color 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.2s,
-        background 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.2s,
-        stroke 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.2s,
-        border-color 0.8s ease 0.2s,
-        box-shadow 0.8s ease 0.2s,
-        opacity 0.8s ease;
-    }
-
-    /* Range Slider Styling */
-    input[type=range] {
-      -webkit-appearance: none;
-      appearance: none;
-      background: transparent;
-      height: 14px;
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-    }
-
-    input[type=range]::-webkit-slider-runnable-track {
-      background: #000000;
-      height: 1px;
-      border: none;
-    }
-
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 14px;
-      height: 14px;
-      background: #000000;
-      border-radius: 50%;
-      margin-top: -6.5px;
-      /* Centered on 1px track */
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      border: none;
-    }
-
-    .status-dot {
-      width: 7px;
-      height: 7px;
-      background: #000000;
-      border-radius: 50%;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-      animation: pulse 2s infinite;
-      cursor: pointer;
-      /* transform transition is instant/standard, background is grouped above */
-      transition: transform 0.3s ease;
-      position: relative;
-      z-index: 100;
-    }
-
-    .status-dot:hover {
-      transform: scale(1.3);
-    }
-
-    .status-dot.active-alt {
-      background: #21918c;
-      box-shadow: 0 0 15px rgba(33, 145, 140, 0.4);
-    }
-
-    /* Pulse for Normal Mode */
-    @keyframes pulse {
-      0% {
-        opacity: 0.4;
-      }
-
-      50% {
-        opacity: 1;
-      }
-
-      100% {
-        opacity: 0.4;
-      }
-    }
-
-    /* Glowy White Pulse for Apocalyptic Mode */
-    @keyframes pulse-white {
-      0% {
-        background: #ffffff;
-        box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
-      }
-
-      50% {
-        background: #ffffff;
-        box-shadow: 0 0 24px rgba(255, 255, 255, 1);
-      }
-
-      100% {
-        background: #ffffff;
-        box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
-      }
-    }
-
-    .app.apocalyptic .status-dot {
-      animation: pulse-white 1.2s ease-in-out infinite;
-      background: #ffffff;
-    }
-
-    .app.apocalyptic .brand,
-    .app.apocalyptic .portfolio,
-    .app.apocalyptic .legend,
-    .app.apocalyptic .slider-container {
-      color: #ffffff;
-    }
-
-    .app.apocalyptic .portfolio svg {
-      stroke: #ffffff;
-    }
-
-    .app.apocalyptic .portfolio-arrow {
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-
-    .app.apocalyptic .legend-dot.pop-cap-dot {
-      background: #ffffff !important;
-    }
-
-    .app.apocalyptic input[type=range]::-webkit-slider-runnable-track {
-      background: #ffffff;
-    }
-
-    .app.apocalyptic input[type=range]::-webkit-slider-thumb {
-      background: #ffffff;
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
-    }
-
-    .portfolio {
-      position: relative;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-color);
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 6px 4px;
-      opacity: 0.8;
-      /* Transitions handled by unified rule above */
-    }
-
-    .portfolio:hover {
-      opacity: 1;
-      gap: 16px;
-    }
-
-    .portfolio-text {
-      position: relative;
-    }
-
-    .portfolio-text::after {
-      content: '';
-      position: absolute;
-      bottom: -4px;
-      left: 0;
-      width: 0%;
-      height: 1px;
-      background: currentColor;
-      transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-      opacity: 0.3;
-    }
-
-    .portfolio:hover .portfolio-text::after {
-      width: 100%;
-    }
-
-    .portfolio-arrow {
-      width: 18px;
-      height: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid rgba(0, 0, 0, 0.1);
-      border-radius: 50%;
-      /* Specific hover transition kept */
-      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .portfolio:hover .portfolio-arrow {
-      background: #000;
-      border-color: #000;
-      color: #fff;
-      transform: rotate(-45deg);
-    }
-
-    .portfolio-arrow svg {
-      width: 10px;
-      height: 10px;
-    }
-
-    .legend {
-      position: absolute;
-      bottom: calc(104px + env(safe-area-inset-bottom));
-      left: 32px;
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      opacity: 0.8;
-      pointer-events: none;
-      /* Color transition handled by unified rule */
-    }
-
-    .slider-container {
-      margin-top: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      pointer-events: auto;
-    }
-
-    input[type=range] {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 140px;
-      background: transparent;
-    }
-
-    input[type=range]:focus {
-      outline: none;
-    }
-
-    input[type=range]::-webkit-slider-runnable-track {
-      width: 100%;
-      height: 2px;
-      cursor: pointer;
-      background: rgba(0, 0, 0, 0.08);
-      border-radius: 1px;
-    }
-
-    input[type=range]::-webkit-slider-thumb {
-      height: 8px;
-      width: 8px;
-      border-radius: 50%;
-      background: #000000;
-      cursor: pointer;
-      -webkit-appearance: none;
-      margin-top: -3px;
-      transition: transform 0.2s ease;
-    }
-
-    input[type=range]:active::-webkit-slider-thumb {
-      transform: scale(1.4);
-    }
-
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .legend-colors {
-      display: flex;
-      gap: 4px;
-    }
-
-    .legend-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-    }
-
-    .legend-label {
-      opacity: 0.6;
-    }
-
-    @media (max-width: 600px) {
-      .bottom-bar {
-        padding: 0 20px;
-        height: 56px;
-        bottom: calc(16px + env(safe-area-inset-bottom));
-      }
-
-      .legend {
-        left: 20px;
-        bottom: calc(84px + env(safe-area-inset-bottom));
-      }
-
-      h1 {
-        font-size: 16px;
-      }
-
-      .portfolio {
-        font-size: 10px;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
-  <div class="app">
+  <div class="app" id="app">
     <div class="apocalypse-overlay"></div>
-    <canvas id="bg"></canvas>
-    <div class="legend" id="legend">
-      <!-- Content populated by JS -->
-    </div>
-    <div class="bottom-bar">
-      <div class="brand">
-        <div class="status-dot" id="status-dot"></div>
-        <h1>Ngakan</h1>
+    <!-- Census: a backdrop layer; the canvas (boids) is drawn on top of it -->
+    <section class="census" id="census" aria-label="Census">
+      <div class="census-body">
+        <canvas class="history" id="history" role="img" aria-label="Population History"></canvas>
       </div>
-      <a class="portfolio" href="https://page.ngakan.com">
-        <span class="portfolio-text">not a product yet</span>
-        <div class="portfolio-arrow">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-            stroke-linejoin="round">
+    </section>
+    <canvas id="bg" aria-label="Boids ecosystem simulation"></canvas>
+
+
+    <div class="hud" id="hud">
+      <!-- Dock -->
+      <div class="dock glass" id="dock">
+        <div class="dock-full" id="dock-full" role="toolbar" aria-label="Simulation controls">
+        <div class="brand"><span class="pulse"></span>Ngakan</div>
+        <span class="sep"></span>
+
+        <button class="btn" id="btn-pause" aria-pressed="false" aria-label="Pause" title="Pause (Space)">
+          <svg class="i-pause" viewBox="0 0 24 24">
+            <path d="M8 5v14M16 5v14" />
+          </svg>
+          <svg class="i-play" viewBox="0 0 24 24">
+            <path d="M7 5l12 7-12 7z" />
+          </svg>
+        </button>
+        <button class="btn" id="btn-reset" aria-label="Reset ecosystem" title="Reset ecosystem">
+          <svg viewBox="0 0 24 24">
+            <path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4" />
+          </svg>
+        </button>
+        <button class="btn speed" id="btn-speed" aria-label="Simulation speed" title="Simulation speed">1×</button>
+
+        <span class="sep"></span>
+
+        <label class="cap-control">
+          <span class="label">Cap</span>
+          <input type="range" id="slider-max-pop" min="50" max="1000" step="10" value="100"
+            aria-label="Population cap">
+          <output id="val-max-pop" for="slider-max-pop">100</output>
+        </label>
+
+        <span class="sep"></span>
+
+        <button class="switch" id="switch-apoc" role="switch" aria-checked="false"
+          aria-label="Apocalyptic mode (A)" title="Apocalyptic mode (A)">
+          <span class="knob"></span>Apocalyptic
+        </button>
+
+        <a class="portfolio" href="https://page.ngakan.com">
+          <span>not a product yet</span>
+          <svg viewBox="0 0 24 24">
             <line x1="7" y1="17" x2="17" y2="7"></line>
             <polyline points="7 7 17 7 17 17"></polyline>
           </svg>
+        </a>
+
+        <span class="sep"></span>
+        <span class="break"></span>
+        <button class="btn fold" id="fold" aria-label="Collapse interface (H)" title="Collapse interface (H)">
+          <svg viewBox="0 0 24 24">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
         </div>
-      </a>
+
+        <!-- Collapsed state: the same glass surface shrinks to this pill -->
+        <button class="pill" id="pill" aria-label="Expand interface (H)" title="Expand interface (H)">
+        <span class="pulse"></span>Ngakan
+        <svg class="pill-chevron" viewBox="0 0 24 24">
+          <path d="M6 15l6-6 6 6" />
+        </svg>
+        </button>
+      </div>
     </div>
   </div>
+
   <script src="savana.js"></script>
-  <script>
-    // Global Simulation Toggle
-    const statusDot = document.getElementById('status-dot');
-    const legend = document.getElementById('legend');
-    let currentSimulation = 'flock'; // 'flock' or 'pandemic'
-
-    const LEGENDS = {
-      flock: `
-        <div class="legend-item" style="margin-bottom: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <div class="legend-dot" style="background: #3b528b"></div>
-            <span class="legend-label" style="opacity: 0.9; text-transform: uppercase; font-weight: 600;">Interdependent: <span id="count-group">0</span></span>
-          </div>
-          <div style="font-size: 10px; opacity: 0.5; margin-left: 17px; text-transform: uppercase; letter-spacing: 0.05em;">
-            neonate: <span id="group-neonate">0</span>  •  juvenile: <span id="group-juvenile">0</span>  •  mature: <span id="group-mature">0</span>
-          </div>
-        </div>
-        <div class="legend-item" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <div class="legend-dot" style="background: #fde725"></div>
-            <span class="legend-label" style="opacity: 0.9; text-transform: uppercase; font-weight: 600;">Individual: <span id="count-individual">0</span></span>
-          </div>
-          <div style="font-size: 10px; opacity: 0.5; margin-left: 17px; text-transform: uppercase; letter-spacing: 0.05em;">
-            neonate: <span id="indiv-neonate">0</span>  •  juvenile: <span id="indiv-juvenile">0</span>  •  mature: <span id="indiv-mature">0</span>
-          </div>
-        </div>
-        <div class="slider-container">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <div class="legend-dot pop-cap-dot" style="background: #000000"></div>
-            <span class="legend-label" style="opacity: 0.9; text-transform: uppercase; font-weight: 600;">Population Cap: <span id="val-max-pop">300</span></span>
-          </div>
-          <input type="range" id="slider-max-pop" min="100" max="1000" value="300" step="10" style="margin-left: 17px;">
-        </div>
-      `,
-    };
-
-    function updateLegend() {
-      legend.innerHTML = LEGENDS.flock;
-      legend.style.opacity = '0.8';
-    }
-
-    // Initialize legend
-    updateLegend();
-
-    statusDot.addEventListener('click', (e) => {
-      const rect = statusDot.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-
-      document.documentElement.style.setProperty('--spawn-x', `${x}px`);
-      document.documentElement.style.setProperty('--spawn-y', `${y}px`);
-
-      statusDot.classList.toggle('active-alt');
-      document.querySelector('.app').classList.toggle('apocalyptic');
-      document.body.classList.toggle('apocalyptic-mode');
-    });
-
-    // Provide instance access
-    document.addEventListener('DOMContentLoaded', () => {
-      // Small delay to ensure main.js App is initialized
-      setTimeout(() => {
-        if (!window.appInstance && window.App) {
-          // Check if it's already running via main.js DOMContentLoaded
-        }
-      }, 100);
-    });
-  </script>
+  <script src="hud.js"></script>
 </body>
 
 </html>
