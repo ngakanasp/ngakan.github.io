@@ -118,10 +118,18 @@ canvas {
 
 .dot {
   grid-area: dot;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 12px;
+  height: 10px;
   transition: background 0.6s var(--ease-out);
+}
+
+/* Same silhouettes as the Boids: dart for Interdependent, diamond for Individual. */
+.trait[data-trait="inter"] .dot {
+  clip-path: polygon(100% 50%, 0 100%, 41% 50%, 0 0);
+}
+
+.trait[data-trait="indiv"] .dot {
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
 
 .trait-name {

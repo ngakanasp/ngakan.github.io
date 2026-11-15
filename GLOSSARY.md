@@ -24,6 +24,10 @@ _Avoid_: solo, loner
 The set of Interdependent Boids sharing one herd identity; it splits when it grows past its size limit.
 _Avoid_: flock, group, pack
 
+**Remains**:
+What a dead Boid becomes for a few seconds: it stops, turns grey and fades away. Remains take no part in the ecosystem, are not counted in the Census and ignore Scatter.
+_Avoid_: corpse, ghost, dead boid
+
 **Stage**:
 A Boid's life stage: Neonate, Juvenile or Mature. Stage sets its size and top speed.
 _Avoid_: phase, age group

@@ -12,6 +12,12 @@
     gridCell: 100,
     apocalypse: { capFactor: 0.6, mortalityFactor: 2.5, fleeFactor: 1.6 },
     wrapMargin: 20,
+    capEasePerSecond: 0.05, // fraction of the gap the working cap closes each second
+    maxOverpopDeathsPerSecond: 1.5,
+    remains: { steps: 180, max: 150, greyBy: 0.3 }, // ~3s at 60 steps/s
+    trail: { points: 8, every: 2 },
+    herdLinkRange: 70,
+    morphSteps: 60,
     traits: {
       INTERDEPENDENT: {
         cohesion: 2.2,
@@ -99,13 +105,46 @@
   const TAU = Math.PI * 2;
   const smoothstep = (t) => t * t * (3 - 2 * t);
 
+  const DART = [[2.3, 0], [-1, 0.85], [-0.35, 0], [-1, -0.85]];
+  const SEED = [[1.7, 0], [0.1, 0.9], [-1.1, 0], [0.1, -0.9]];
+  const REMAINS_GREY = '#8c8c8c';
+  let nextBoidId = 0;
+
+  // Silhouette between a seed (m = 0, Individual) and a dart (m = 1, Interdependent).
+  function traceShape(ctx, size, m) {
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const x = (SEED[i][0] + (DART[i][0] - SEED[i][0]) * m) * size;
+      const y = (SEED[i][1] + (DART[i][1] - SEED[i][1]) * m) * size;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  // Filled body; the Individual end of the morph gets a rounded outline.
+  function paintBody(ctx, size, m, color) {
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = size * 0.7 * (1 - m);
+    traceShape(ctx, size, m);
+    ctx.fill();
+    if (m < 0.98) ctx.stroke();
+  }
+
   class Boid {
     constructor(world, traitType = null, parent = null, initialAge = 0) {
       this.world = world;
+      this.id = nextBoidId++;
       this.traitType = traitType || (Math.random() > 0.6 ? 'INTERDEPENDENT' : 'INDIVIDUAL');
       this.trait = CONFIG.traits[this.traitType];
       this.color = this.trait.colors[Math.floor(Math.random() * this.trait.colors.length)];
       this.herdId = parent ? parent.herdId : (this.traitType === 'INTERDEPENDENT' ? nextHerdId : 0);
+      this.shape = this.traitType === 'INTERDEPENDENT' ? 1 : 0; // silhouette morph
+      this.pulse = 0; // trait-switch ring, 1 -> 0
+      this.pulseColor = this.color;
+      this.trail = [];
+      this.trailTick = 0;
 
       if (parent) {
         // Offset from the parent so separation never sees d = 0.
@@ -255,7 +294,21 @@
 
       this.position.add(this.velocity);
       this.acceleration.mult(0);
+      const px = this.position.x;
+      const py = this.position.y;
       this.wrap();
+      if (this.position.x !== px || this.position.y !== py) this.trail.length = 0;
+      else if (++this.trailTick >= CONFIG.trail.every) {
+        this.trailTick = 0;
+        this.trail.push(px, py);
+        if (this.trail.length > CONFIG.trail.points * 2) this.trail.splice(0, 2);
+      }
+
+      const target = this.traitType === 'INTERDEPENDENT' ? 1 : 0;
+      const dm = 1 / CONFIG.morphSteps;
+      if (this.shape < target) this.shape = Math.min(target, this.shape + dm);
+      else if (this.shape > target) this.shape = Math.max(target, this.shape - dm);
+      if (this.pulse > 0) this.pulse = Math.max(0, this.pulse - dm);
 
       // Smooth heading; keep the last heading when nearly stationary.
       if (this.velocity.mag() > 0.05) {
@@ -271,6 +324,8 @@
       this.trait = CONFIG.traits[this.traitType];
       this.color = this.trait.colors[Math.floor(Math.random() * this.trait.colors.length)];
       this.herdId = this.traitType === 'INTERDEPENDENT' ? (herdId ?? ++nextHerdId) : 0;
+      this.pulse = 1;
+      this.pulseColor = this.color;
     }
 
     canReproduce(abundanceFactor = 0, overpopFactor = 0) {
@@ -292,23 +347,90 @@
       return new Boid(this.world, trait, this);
     }
 
+    drawTrail(ctx) {
+      const t = this.trail;
+      const n = t.length / 2;
+      if (n < 1) return;
+      const size = 5.5 * this.scale;
+      ctx.strokeStyle = this.color;
+      ctx.lineCap = 'round';
+      ctx.lineWidth = Math.max(0.8, size * 0.35);
+      let lx = t[0];
+      let ly = t[1];
+      for (let i = 1; i <= n; i++) {
+        const x = i < n ? t[i * 2] : this.position.x;
+        const y = i < n ? t[i * 2 + 1] : this.position.y;
+        ctx.globalAlpha = 0.28 * (i / n);
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        lx = x;
+        ly = y;
+      }
+    }
+
     draw(ctx) {
       const size = 5.5 * this.scale;
+      this.drawTrail(ctx);
+
       ctx.save();
       ctx.translate(this.position.x, this.position.y);
+
+      if (this.pulse > 0) {
+        ctx.globalAlpha = this.pulse * 0.7;
+        ctx.strokeStyle = this.pulseColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, size * (2 + (1 - this.pulse) * 5), 0, TAU);
+        ctx.stroke();
+      }
+
       ctx.rotate(this.heading);
-
-      ctx.fillStyle = this.color;
       ctx.globalAlpha = 0.82;
+      paintBody(ctx, size, smoothstep(this.shape), this.color);
+      ctx.restore();
+    }
+  }
 
-      ctx.beginPath();
-      ctx.moveTo(size * 2.3, 0);
-      ctx.lineTo(-size, size * 0.85);
-      ctx.lineTo(-size * 0.35, 0);
-      ctx.lineTo(-size, -size * 0.85);
-      ctx.closePath();
-      ctx.fill();
+  // What a dead Boid leaves behind: stops, greys out, fades.
+  class Remains {
+    constructor(b) {
+      this.x = b.position.x;
+      this.y = b.position.y;
+      this.vx = b.velocity.x;
+      this.vy = b.velocity.y;
+      this.heading = b.heading;
+      this.size = 5.5 * b.scale;
+      this.shape = b.shape;
+      this.color = b.color;
+      this.age = 0;
+    }
 
+    update() {
+      this.age++;
+      this.vx *= 0.9;
+      this.vy *= 0.9;
+      this.x += this.vx;
+      this.y += this.vy;
+      return this.age < CONFIG.remains.steps;
+    }
+
+    draw(ctx) {
+      const t = this.age / CONFIG.remains.steps;
+      const grey = Math.min(1, t / CONFIG.remains.greyBy);
+      const m = smoothstep(this.shape);
+      const size = this.size * (1 - 0.4 * t);
+      const alpha = 0.82 * (1 - t) * (1 - t);
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.heading);
+      if (grey < 1) {
+        ctx.globalAlpha = alpha * (1 - grey);
+        paintBody(ctx, size, m, this.color);
+      }
+      ctx.globalAlpha = alpha * grey;
+      paintBody(ctx, size, m, REMAINS_GREY);
       ctx.restore();
     }
   }
@@ -321,8 +443,12 @@
       this.ctx = this.canvas.getContext('2d', { alpha: true });
       this.world = { width: 0, height: 0 };
       this.boids = [];
+      this.remains = [];
       this.grid = new SpatialGrid(CONFIG.gridCell);
       this.scratch = [];
+      this.linkScratch = [];
+      this.cullBudget = 0;
+      this.workingCap = null;
       this.isActive = true;
       this.paused = false;
       this.speed = 1;
@@ -360,6 +486,9 @@
     init() {
       this.resize();
       this.boids = [];
+      this.remains = [];
+      this.cullBudget = 0;
+      this.workingCap = this.targetCap;
       nextHerdId = 1;
 
       const total = CONFIG.initialCount;
@@ -407,8 +536,46 @@
       return best;
     }
 
+    get targetCap() {
+      return CONFIG.maxPopulation * (this.apocalyptic ? CONFIG.apocalypse.capFactor : 1);
+    }
+
+    // The cap the ecosystem actually feels: it eases toward the target so a
+    // lowered slider produces a decline, not a cliff.
     get effectiveCap() {
-      return Math.round(CONFIG.maxPopulation * (this.apocalyptic ? CONFIG.apocalypse.capFactor : 1));
+      return Math.round(this.workingCap ?? this.targetCap);
+    }
+
+    easeCap() {
+      const target = this.targetCap;
+      if (this.workingCap === null) this.workingCap = target;
+      const gap = target - this.workingCap;
+      if (Math.abs(gap) < 0.5) this.workingCap = target;
+      else this.workingCap += gap * CONFIG.capEasePerSecond * CONFIG.step;
+    }
+
+    // Overpopulation victims: favour Mature/old and isolated Boids, spare Neonates.
+    pickVictim() {
+      let total = 0;
+      const weights = this.boids.map((b) => {
+        let w = b.stage === 'NEONATE' ? 0 : b.stage === 'JUVENILE' ? 0.3 : 1 + Math.min(2, b.age / 5000);
+        if (!b.hasPartner) w *= 1.5;
+        total += w;
+        return w;
+      });
+      if (total <= 0) return -1;
+      let r = Math.random() * total;
+      for (let i = 0; i < weights.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return i;
+      }
+      return weights.length - 1;
+    }
+
+    kill(index) {
+      const [b] = this.boids.splice(index, 1);
+      this.remains.push(new Remains(b));
+      if (this.remains.length > CONFIG.remains.max) this.remains.shift();
     }
 
     setApocalyptic(on) { this.apocalyptic = !!on; }
@@ -453,6 +620,7 @@
     }
 
     step() {
+      this.easeCap();
       const cap = this.effectiveCap;
       const diff = this.boids.length - cap;
       const overpopFactor = Math.max(0, diff / 30);
@@ -484,11 +652,26 @@
 
         const isAdult = b.stage === 'MATURE' && b.age > CONFIG.stages.MATURE.reproductionAge;
         const baseDeath = isAdult ? b.trait.mortality : 0.00005;
-        const deathChance = (baseDeath * mortalityFactor * (1 - Math.min(0.6, abundanceFactor))) + (overpopFactor * 0.005);
+        const deathChance = baseDeath * mortalityFactor * (1 - Math.min(0.6, abundanceFactor));
 
         if (Math.random() < deathChance || b.age > 20000) {
-          this.boids.splice(i, 1);
+          this.kill(i);
         }
+      }
+
+      // Overpopulation culls are rationed so a lower cap is a gradual decline.
+      if (diff > 0) {
+        this.cullBudget = Math.min(2, this.cullBudget + CONFIG.maxOverpopDeathsPerSecond * CONFIG.step);
+        if (this.cullBudget >= 1) {
+          const v = this.pickVictim();
+          if (v >= 0) { this.kill(v); this.cullBudget -= 1; }
+        }
+      } else {
+        this.cullBudget = 0;
+      }
+
+      for (let i = this.remains.length - 1; i >= 0; i--) {
+        if (!this.remains[i].update()) this.remains.splice(i, 1);
       }
 
       this.boids.push(...newBoids);
@@ -496,8 +679,32 @@
     }
 
     render() {
-      this.ctx.clearRect(0, 0, this.world.width, this.world.height);
-      for (const b of this.boids) b.draw(this.ctx);
+      const ctx = this.ctx;
+      ctx.clearRect(0, 0, this.world.width, this.world.height);
+      for (const r of this.remains) r.draw(ctx);
+      this.drawHerdLinks(ctx);
+      for (const b of this.boids) b.draw(ctx);
+      ctx.globalAlpha = 1;
+    }
+
+    // Faint lines between nearby members of the same Herd.
+    drawHerdLinks(ctx) {
+      this.grid.rebuild(this.boids);
+      ctx.globalAlpha = 0.3;
+      ctx.strokeStyle = CONFIG.traits.INTERDEPENDENT.colors[1];
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (const b of this.boids) {
+        if (b.traitType !== 'INTERDEPENDENT') continue;
+        for (const o of this.grid.near(b, this.linkScratch)) {
+          if (o.id <= b.id || o.traitType !== 'INTERDEPENDENT' || o.herdId !== b.herdId) continue;
+          if (Vector.dist(b.position, o.position) < CONFIG.herdLinkRange) {
+            ctx.moveTo(b.position.x, b.position.y);
+            ctx.lineTo(o.position.x, o.position.y);
+          }
+        }
+      }
+      ctx.stroke();
     }
 
     updateCensus() {
