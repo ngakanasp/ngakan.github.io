@@ -21,33 +21,11 @@
     <!-- Census: a backdrop layer; the canvas (boids) is drawn on top of it -->
     <section class="census" id="census" aria-label="Census">
       <div class="census-body">
-        <div class="trait" data-trait="inter">
-          <span class="dot" style="background:var(--interdependent)"></span>
-          <span class="trait-name">Interdependent</span>
-          <span class="trait-count" id="count-inter">0</span>
-          <div class="stages" aria-hidden="true">
-            <i id="st-inter-0" style="background:var(--interdependent)"></i>
-            <i id="st-inter-1" style="background:var(--interdependent)"></i>
-            <i id="st-inter-2" style="background:var(--interdependent)"></i>
-          </div>
-          <div class="census-stages" id="cs-inter">neonate 0 · juvenile 0 · mature 0</div>
-        </div>
-
-        <div class="trait" data-trait="indiv">
-          <span class="dot" style="background:var(--individual)"></span>
-          <span class="trait-name">Individual</span>
-          <span class="trait-count" id="count-indiv">0</span>
-          <div class="stages" aria-hidden="true">
-            <i id="st-indiv-0" style="background:var(--individual)"></i>
-            <i id="st-indiv-1" style="background:var(--individual)"></i>
-            <i id="st-indiv-2" style="background:var(--individual)"></i>
-          </div>
-          <div class="census-stages" id="cs-indiv">neonate 0 · juvenile 0 · mature 0</div>
-        </div>
-
+        <canvas class="history" id="history" role="img" aria-label="Population History"></canvas>
       </div>
     </section>
     <canvas id="bg" aria-label="Boids ecosystem simulation"></canvas>
+
 
     <div class="hud" id="hud">
       <!-- Dock -->

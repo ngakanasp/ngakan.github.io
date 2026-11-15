@@ -18,6 +18,7 @@
     trail: { points: 8, every: 2 },
     herdLinkRange: 70,
     morphSteps: 60,
+    historySamples: 120, // Population History: one sample per simulated second
     traits: {
       INTERDEPENDENT: {
         cohesion: 2.2,
@@ -326,6 +327,7 @@
       this.herdId = this.traitType === 'INTERDEPENDENT' ? (herdId ?? ++nextHerdId) : 0;
       this.pulse = 1;
       this.pulseColor = this.color;
+      this.world.switches = (this.world.switches || 0) + 1;
     }
 
     canReproduce(abundanceFactor = 0, overpopFactor = 0) {
@@ -449,6 +451,8 @@
       this.linkScratch = [];
       this.cullBudget = 0;
       this.workingCap = null;
+      this.history = [];
+      this.historyTick = 0;
       this.isActive = true;
       this.paused = false;
       this.speed = 1;
@@ -489,6 +493,9 @@
       this.remains = [];
       this.cullBudget = 0;
       this.workingCap = this.targetCap;
+      this.history = [];
+      this.historyTick = 0;
+      this.world.switches = 0;
       nextHerdId = 1;
 
       const total = CONFIG.initialCount;
@@ -676,6 +683,24 @@
 
       this.boids.push(...newBoids);
       this.manageHerds();
+      this.recordHistory();
+    }
+
+    // Population History: one sample per simulated second, last two minutes.
+    recordHistory() {
+      if (++this.historyTick < Math.round(1 / CONFIG.step)) return;
+      this.historyTick = 0;
+      let inter = 0;
+      for (const b of this.boids) if (b.traitType === 'INTERDEPENDENT') inter++;
+      this.history.push({
+        inter,
+        indiv: this.boids.length - inter,
+        cap: this.workingCap,
+        apoc: this.apocalyptic ? 1 : 0,
+        switches: this.world.switches
+      });
+      this.world.switches = 0;
+      if (this.history.length > CONFIG.historySamples) this.history.shift();
     }
 
     render() {
@@ -727,6 +752,7 @@
 
   window.App = App;
   window.SAVANA_CONFIG = CONFIG;
+  window.SAVANA_SHAPES = { DART, SEED };
 
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     if (!window.appInstance) new App();

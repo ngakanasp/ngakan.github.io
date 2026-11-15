@@ -49,8 +49,12 @@ The glass overlay of controls above the canvas (the Dock), which can collapse to
 _Avoid_: legend, bottom bar
 
 **Census**:
-The live counts of Boids by Trait and Stage, drawn as a non-interactive backdrop behind the canvas so Boids move over it; it greys out while the HUD is collapsed.
+The live count of Boids per Trait, shown as the Population History with each Trait's count labelled at the end of its line. It is a non-interactive backdrop behind the canvas so Boids move over it, and it greys out while the HUD is collapsed.
 _Avoid_: stats, metrics, legend
+
+**Population History**:
+The rolling record of how many Boids of each Trait existed over the last couple of minutes of simulated time, shown as a graph as part of the Census. Reset clears it.
+_Avoid_: chart, timeline, log
 
 **Dock**:
 The HUD's control strip: pause, reset, speed, Population Cap and the Apocalyptic toggle. It is a translucent glass surface that morphs into the pill when collapsed.
