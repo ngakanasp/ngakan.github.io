@@ -6,9 +6,9 @@ A biologically-inspired boids simulation featuring complex social dynamics, life
 
 The simulation features two distinct behavioral archetypes that dictate how boids interact with their environment and each other.
 
-### 1. Interdependent (Group Trait)
+### 1. Interdependent
 - **Philosophy**: Strength in numbers, community, and social structure.
-- **Behavior**: High **Alignment** and **Cohesion**. These boids actively seek out their specific "herd" (identified by `groupId`) and move in synchronized patterns.
+- **Behavior**: High **Alignment** and **Cohesion**. These boids actively seek out their specific "herd" (a **Herd**, identified by `groupId`) and move in synchronized patterns.
 - **Reproduction**: Highly efficient in groups. They have a high base `reproChance` but requires being close to a partner within the herd.
 - **Mortality**: Higher natural mortality rate due to competition for resources and group visibility.
 
@@ -56,7 +56,11 @@ Key global variables that control the ecosystem's balance:
 ---
 
 ## 🕹️ Interaction & Controls
-- **Tactile Avoidance**: Move your mouse or drag your finger on the screen to "scatter" the boids. They will flee from the interaction point and reform their groups once you stop.
-- **Population Cap Control**: A sleek interactive slider in the legend allows you to dynamically adjust the maximum population from 100 to 1000.
-- **Live Metrics**: The bottom-left legend tracks real-time population counts for both traits across all life stages.
-- **Status Toggle**: The status dot beside the header serves as a visual indicator for future behavioral overrides.
+- **Scatter**: Move your mouse or drag your finger to push boids away. The push eases in smoothly with proximity and they reform their herds afterwards.
+- **Census** (top-left): live total, Trait mix bar, Stage breakdown per Trait and a population sparkline with the cap as a dashed line. On small screens it shows its headline; tap to expand.
+- **Dock** (bottom): pause/play (`Space`), reset, speed (0.5× / 1× / 2×), Population Cap slider and the **Apocalyptic** switch (`A`).
+- **Hide interface** (`H`, or the chevron): collapses everything into a single pill.
+- **Apocalyptic mode**: a dark theme revealed by a circular wipe from the switch, plus scarcity: effective cap ×0.6, mortality ×2.5, stronger scatter. Tunable in `CONFIG.apocalypse`.
+
+## 🗂️ Files
+`index.html` (markup) · `styles.css` · `savana.js` (simulation: fixed 60Hz timestep, spatial grid) · `hud.js` (Census, Dock, shortcuts). See `GLOSSARY.md` for terminology.

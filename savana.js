@@ -10,6 +10,7 @@
     step: 1 / 60, // fixed simulation timestep (seconds)
     maxStepsPerFrame: 3,
     gridCell: 100,
+    apocalypse: { capFactor: 0.6, mortalityFactor: 2.5, fleeFactor: 1.6 },
     wrapMargin: 20,
     traits: {
       INTERDEPENDENT: {
@@ -155,7 +156,7 @@
       else if (this.position.y > height + m) this.position.y = -m;
     }
 
-    flock(neighbours, pointer) {
+    flock(neighbours, pointer, fleeFactor = 1) {
       const alignment = new Vector();
       const cohesion = new Vector();
       const separation = new Vector();
@@ -226,7 +227,7 @@
           const t = smoothstep(1 - d / CONFIG.interactionRange);
           const flee = this.position.copy().sub(pointer);
           if (flee.mag() < 0.001) flee.x = 1;
-          flee.setMag(this.maxForce * CONFIG.interactionForce * t);
+          flee.setMag(this.maxForce * CONFIG.interactionForce * fleeFactor * t);
           this.acceleration.add(flee);
         }
       }
@@ -326,12 +327,12 @@
       this.paused = false;
       this.speed = 1;
       this.interactionPos = null;
+      this.apocalyptic = false;
       this.accumulator = 0;
       this.lastTime = performance.now();
 
       this.init();
       this.setupInteraction();
-      this.setupSlider();
       window.addEventListener('resize', () => this.resize());
       requestAnimationFrame((t) => this.frame(t));
     }
@@ -404,24 +405,18 @@
       return best;
     }
 
+    get effectiveCap() {
+      return Math.round(CONFIG.maxPopulation * (this.apocalyptic ? CONFIG.apocalypse.capFactor : 1));
+    }
+
+    setApocalyptic(on) { this.apocalyptic = !!on; }
+
     stop() { this.isActive = false; }
     start() {
       if (this.isActive) return;
       this.isActive = true;
       this.lastTime = performance.now();
       requestAnimationFrame((t) => this.frame(t));
-    }
-
-    setupSlider() {
-      const slider = document.getElementById('slider-max-pop');
-      const valDisplay = document.getElementById('val-max-pop');
-      if (slider && valDisplay) {
-        slider.addEventListener('input', (e) => {
-          const val = parseInt(e.target.value);
-          CONFIG.maxPopulation = val;
-          valDisplay.textContent = val;
-        });
-      }
     }
 
     resize() {
@@ -456,14 +451,18 @@
     }
 
     step() {
-      const diff = this.boids.length - CONFIG.maxPopulation;
+      const cap = this.effectiveCap;
+      const diff = this.boids.length - cap;
       const overpopFactor = Math.max(0, diff / 30);
       const abundanceFactor = Math.max(0, -diff / 100);
+
+      const fleeFactor = this.apocalyptic ? CONFIG.apocalypse.fleeFactor : 1;
+      const mortalityFactor = this.apocalyptic ? CONFIG.apocalypse.mortalityFactor : 1;
 
       // Phase 1: every boid reads the same snapshot of positions.
       this.grid.rebuild(this.boids);
       for (const b of this.boids) {
-        b.flock(this.grid.near(b, this.scratch), this.interactionPos);
+        b.flock(this.grid.near(b, this.scratch), this.interactionPos, fleeFactor);
       }
 
       // Phase 2: integrate, reproduce, die.
@@ -477,13 +476,13 @@
           b.switchTrait('INTERDEPENDENT', herd);
         }
 
-        if (b.canReproduce(abundanceFactor, overpopFactor) && this.boids.length + newBoids.length < CONFIG.maxPopulation) {
+        if (b.canReproduce(abundanceFactor, overpopFactor) && this.boids.length + newBoids.length < cap) {
           newBoids.push(b.reproduce());
         }
 
         const isAdult = b.stage === 'MATURE' && b.age > CONFIG.stages.MATURE.reproductionAge;
         const baseDeath = isAdult ? b.trait.mortality : 0.00005;
-        const deathChance = (baseDeath * (1 - Math.min(0.6, abundanceFactor))) + (overpopFactor * 0.005);
+        const deathChance = (baseDeath * mortalityFactor * (1 - Math.min(0.6, abundanceFactor))) + (overpopFactor * 0.005);
 
         if (Math.random() < deathChance || b.age > 20000) {
           this.boids.splice(i, 1);
@@ -500,37 +499,20 @@
     }
 
     updateStats() {
-      const groupEl = document.getElementById('count-group');
-      const indivEl = document.getElementById('count-individual');
-
       const stats = {
         INTERDEPENDENT: { total: 0, neonate: 0, juvenile: 0, mature: 0 },
         INDIVIDUAL: { total: 0, neonate: 0, juvenile: 0, mature: 0 }
       };
 
-      this.boids.forEach(b => {
+      for (const b of this.boids) {
         const t = stats[b.traitType];
         t.total++;
         if (b.stage === 'NEONATE') t.neonate++;
         else if (b.stage === 'JUVENILE') t.juvenile++;
         else if (b.age > CONFIG.stages.MATURE.reproductionAge) t.mature++;
         else t.juvenile++;
-      });
+      }
 
-      if (groupEl) groupEl.textContent = stats.INTERDEPENDENT.total;
-      if (indivEl) indivEl.textContent = stats.INDIVIDUAL.total;
-
-      const setSub = (prefix, data) => {
-        const n = document.getElementById(`${prefix}-neonate`);
-        const j = document.getElementById(`${prefix}-juvenile`);
-        const m = document.getElementById(`${prefix}-mature`);
-        if (n) n.textContent = data.neonate;
-        if (j) j.textContent = data.juvenile;
-        if (m) m.textContent = data.mature;
-      };
-
-      setSub('group', stats.INTERDEPENDENT);
-      setSub('indiv', stats.INDIVIDUAL);
       this.stats = stats;
     }
   }
