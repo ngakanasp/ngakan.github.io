@@ -1,6 +1,4 @@
 (function () {
-  const VIRIDIS = ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725', '#b5de2b'];
-
   const CONFIG = {
     initialCount: 130,
     maxPopulation: 300,
@@ -9,8 +7,12 @@
     groupLimits: { min: 30, max: 40 },
     interactionRange: 150,
     interactionForce: 2.8,
+    step: 1 / 60, // fixed simulation timestep (seconds)
+    maxStepsPerFrame: 3,
+    gridCell: 100,
+    wrapMargin: 20,
     traits: {
-      GROUP: {
+      INTERDEPENDENT: {
         cohesion: 2.2,
         alignment: 1.6,
         separation: 2.2,
@@ -64,31 +66,67 @@
     copy() { return new Vector(this.x, this.y); }
   }
 
+  // Uniform grid so neighbour lookups are O(n) instead of O(n^2).
+  class SpatialGrid {
+    constructor(cell) {
+      this.cell = cell;
+      this.cells = new Map();
+    }
+    key(cx, cy) { return cx * 73856093 ^ cy * 19349663; }
+    rebuild(boids) {
+      this.cells.clear();
+      for (const b of boids) {
+        const k = this.key(Math.floor(b.position.x / this.cell), Math.floor(b.position.y / this.cell));
+        const bucket = this.cells.get(k);
+        if (bucket) bucket.push(b); else this.cells.set(k, [b]);
+      }
+    }
+    near(b, out) {
+      out.length = 0;
+      const cx = Math.floor(b.position.x / this.cell);
+      const cy = Math.floor(b.position.y / this.cell);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const bucket = this.cells.get(this.key(cx + dx, cy + dy));
+          if (bucket) for (const o of bucket) out.push(o);
+        }
+      }
+      return out;
+    }
+  }
+
+  const TAU = Math.PI * 2;
+  const smoothstep = (t) => t * t * (3 - 2 * t);
+
   class Boid {
-    constructor(canvas, traitType = null, parent = null, initialAge = 0) {
-      this.canvas = canvas;
-      this.traitType = traitType || (Math.random() > 0.6 ? 'GROUP' : 'INDIVIDUAL');
+    constructor(world, traitType = null, parent = null, initialAge = 0) {
+      this.world = world;
+      this.traitType = traitType || (Math.random() > 0.6 ? 'INTERDEPENDENT' : 'INDIVIDUAL');
       this.trait = CONFIG.traits[this.traitType];
       this.color = this.trait.colors[Math.floor(Math.random() * this.trait.colors.length)];
-      this.groupId = parent ? parent.groupId : (this.traitType === 'GROUP' ? nextGroupId : 0);
-      this.noiseSeed = Math.random() * 1000;
+      this.groupId = parent ? parent.groupId : (this.traitType === 'INTERDEPENDENT' ? nextGroupId : 0);
 
       if (parent) {
-        this.position = parent.position.copy();
-        this.velocity = new Vector((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4);
+        // Offset from the parent so separation never sees d = 0.
+        const a = Math.random() * TAU;
+        this.position = new Vector(parent.position.x + Math.cos(a) * 8, parent.position.y + Math.sin(a) * 8);
+        this.velocity = parent.velocity.copy().mult(0.5);
       } else {
-        this.position = new Vector(Math.random() * canvas.width, Math.random() * canvas.height);
+        this.position = new Vector(Math.random() * world.width, Math.random() * world.height);
         this.velocity = new Vector((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4);
       }
 
       this.acceleration = new Vector();
       this.age = initialAge;
       this.reproCooldown = 0;
-      this.wanderAngle = Math.random() * Math.PI * 2;
-      this.updateStage();
+      this.wanderAngle = Math.random() * TAU;
+      this.maxForce = 0.08;
+      this.hasPartner = false;
+      this.updateStage(true);
+      this.heading = Math.atan2(this.velocity.y, this.velocity.x);
     }
 
-    updateStage() {
+    updateStage(snap = false) {
       if (this.age < CONFIG.stages.NEONATE.ageLimit) {
         this.stage = 'NEONATE';
       } else if (this.age < CONFIG.stages.JUVENILE.ageLimit) {
@@ -98,101 +136,104 @@
       }
 
       const stageConfig = CONFIG.stages[this.stage];
-      this.scale = stageConfig.scale;
-      this.maxSpeed = stageConfig.speed;
-      this.maxForce = 0.08;
+      // Ease size and speed toward the stage target so stage changes don't pop.
+      if (snap || this.scale === undefined) {
+        this.scale = stageConfig.scale;
+        this.maxSpeed = stageConfig.speed;
+      } else {
+        this.scale += (stageConfig.scale - this.scale) * 0.02;
+        this.maxSpeed += (stageConfig.speed - this.maxSpeed) * 0.02;
+      }
     }
 
     wrap() {
-      if (this.position.x < 0) this.position.x = this.canvas.width;
-      if (this.position.x > this.canvas.width) this.position.x = 0;
-      if (this.position.y < 0) this.position.y = this.canvas.height;
-      if (this.position.y > this.canvas.height) this.position.y = 0;
+      const m = CONFIG.wrapMargin;
+      const { width, height } = this.world;
+      if (this.position.x < -m) this.position.x = width + m;
+      else if (this.position.x > width + m) this.position.x = -m;
+      if (this.position.y < -m) this.position.y = height + m;
+      else if (this.position.y > height + m) this.position.y = -m;
     }
 
-    flock(boids) {
-      let alignment = new Vector();
-      let cohesion = new Vector();
-      let separation = new Vector();
-      let spaceForce = new Vector();
+    flock(neighbours, pointer) {
+      const alignment = new Vector();
+      const cohesion = new Vector();
+      const separation = new Vector();
 
-      let perception = CONFIG.perception * this.scale;
+      const perception = CONFIG.perception * this.scale;
+      const personalSpace = 25 * this.scale;
       let totalTrait = 0;
       let totalGlobal = 0;
+      let totalSeparating = 0;
 
       this.hasPartner = false;
 
-      for (let other of boids) {
-        if (other !== this) {
-          const d = Vector.dist(this.position, other.position);
-          if (d < perception) {
-            // Group logic: Cohesion/Alignment only for same group
-            if (this.traitType === 'GROUP' && other.groupId === this.groupId) {
-              alignment.add(other.velocity);
-              cohesion.add(other.position);
-              totalTrait++;
+      for (const other of neighbours) {
+        if (other === this) continue;
+        const d = Vector.dist(this.position, other.position);
+        if (d >= perception) continue;
 
-              // Check for reproduction partner (same trait, both mature)
-              if (d < perception * 0.6 && other.stage === 'MATURE') {
-                this.hasPartner = true;
-              }
-            } else if (this.traitType === 'INDIVIDUAL' && other.traitType === 'INDIVIDUAL') {
-              // Individuals still have some mild clustering logic if solitary
-              alignment.add(other.velocity);
-              cohesion.add(other.position);
-              totalTrait++;
-
-              // Individuals harder to pair (closer proximity required)
-              if (d < perception * 0.45 && other.stage === 'MATURE') {
-                this.hasPartner = true;
-              }
-            }
-
-            // Separation is GLOBAL (respect personal space of everyone)
-            if (d < 25 * this.scale) {
-              let diff = this.position.copy().sub(other.position);
-              diff.div(d * d || 1);
-              separation.add(diff);
-            }
-            totalGlobal++;
-          }
+        if (this.traitType === 'INTERDEPENDENT' && other.groupId === this.groupId) {
+          alignment.add(other.velocity);
+          cohesion.add(other.position);
+          totalTrait++;
+          if (d < perception * 0.6 && other.stage === 'MATURE') this.hasPartner = true;
+        } else if (this.traitType === 'INDIVIDUAL' && other.traitType === 'INDIVIDUAL') {
+          alignment.add(other.velocity);
+          cohesion.add(other.position);
+          totalTrait++;
+          if (d < perception * 0.45 && other.stage === 'MATURE') this.hasPartner = true;
         }
+
+        // Separation is global. Weight falls off linearly and is bounded, so
+        // two boids on top of each other cannot produce a force spike.
+        if (d < personalSpace) {
+          const dd = Math.max(d, 1);
+          const w = (1 - dd / personalSpace);
+          let dx = this.position.x - other.position.x;
+          let dy = this.position.y - other.position.y;
+          if (d < 0.001) { const a = Math.random() * TAU; dx = Math.cos(a); dy = Math.sin(a); }
+          const len = Math.sqrt(dx * dx + dy * dy) || 1;
+          separation.x += (dx / len) * w;
+          separation.y += (dy / len) * w;
+          totalSeparating++;
+        }
+        totalGlobal++;
       }
 
       if (totalTrait > 0) {
         alignment.div(totalTrait).setMag(this.maxSpeed).sub(this.velocity).limit(this.maxForce);
         cohesion.div(totalTrait).sub(this.position).setMag(this.maxSpeed).sub(this.velocity).limit(this.maxForce);
       }
-      if (totalGlobal > 0) {
-        separation.div(totalGlobal).setMag(this.maxSpeed).sub(this.velocity).limit(this.maxForce);
+      if (totalSeparating > 0) {
+        separation.div(totalSeparating).setMag(this.maxSpeed).sub(this.velocity).limit(this.maxForce);
       }
 
-      // Space Hunger: Perfectly smooth angular wander (no spatial jitter)
+      // Space hunger: smooth angular wander plus crowding relief.
       this.wanderAngle += (Math.random() - 0.5) * 0.15;
       const wander = new Vector(Math.cos(this.wanderAngle), Math.sin(this.wanderAngle));
-
-      const densityForce = totalGlobal > 5 ? separation.copy().mult(1.0) : new Vector();
-      spaceForce.add(wander).add(densityForce).limit(this.maxForce);
+      const spaceForce = wander.add(totalGlobal > 5 ? separation.copy() : new Vector()).limit(this.maxForce);
 
       this.acceleration.add(alignment.mult(this.trait.alignment));
       this.acceleration.add(cohesion.mult(this.trait.cohesion));
       this.acceleration.add(separation.mult(this.trait.separation));
       this.acceleration.add(spaceForce.mult(this.trait.spaceHunger * 12));
 
-      // Interaction Avoidance (Mouse/Touch)
-      if (window.appInstance && window.appInstance.interactionPos) {
-        let d = Vector.dist(this.position, window.appInstance.interactionPos);
+      // Scatter: strength eases in smoothly with proximity (no on/off edge).
+      if (pointer) {
+        const d = Vector.dist(this.position, pointer);
         if (d < CONFIG.interactionRange) {
-          let flee = this.position.copy().sub(window.appInstance.interactionPos);
-          flee.setMag(this.maxSpeed * 3).limit(this.maxForce * CONFIG.interactionForce);
+          const t = smoothstep(1 - d / CONFIG.interactionRange);
+          const flee = this.position.copy().sub(pointer);
+          if (flee.mag() < 0.001) flee.x = 1;
+          flee.setMag(this.maxForce * CONFIG.interactionForce * t);
           this.acceleration.add(flee);
         }
       }
 
-      // Slow pull towards screen visible area
-      const center = new Vector(this.canvas.width / 2, this.canvas.height / 2);
-      let centerPull = center.sub(this.position).setMag(0.012);
-      this.acceleration.add(centerPull);
+      // Slow pull toward the visible area.
+      const center = new Vector(this.world.width / 2, this.world.height / 2);
+      this.acceleration.add(center.sub(this.position).setMag(0.012));
     }
 
     update(overpopFactor = 0) {
@@ -200,44 +241,40 @@
       if (this.reproCooldown > 0) this.reproCooldown--;
       this.updateStage();
 
-      // Dynamic Trait Transitions: Recalibrated for better balance
-      if (this.stage === 'JUVENILE' && this.traitType === 'GROUP' && Math.random() < 0.00045) {
+      if (this.stage === 'JUVENILE' && this.traitType === 'INTERDEPENDENT' && Math.random() < 0.00045) {
         this.switchTrait('INDIVIDUAL');
-      } else if (this.stage === 'MATURE' && this.traitType === 'INDIVIDUAL' && Math.random() < 0.00025) {
-        this.switchTrait('GROUP');
       }
+      // (Mature Individual -> Interdependent is handled by the App, which knows the herds.)
 
       this.velocity.add(this.acceleration);
 
-      // Lethargy: Boids slow down when resources are scarce
+      // Lethargy: boids slow down when resources are scarce.
       const dynamicMaxSpeed = this.maxSpeed * (1 - Math.min(0.4, overpopFactor * 0.15));
       this.velocity.limit(dynamicMaxSpeed);
 
       this.position.add(this.velocity);
       this.acceleration.mult(0);
       this.wrap();
+
+      // Smooth heading; keep the last heading when nearly stationary.
+      if (this.velocity.mag() > 0.05) {
+        const target = Math.atan2(this.velocity.y, this.velocity.x);
+        let diff = target - this.heading;
+        diff = ((diff + Math.PI) % TAU + TAU) % TAU - Math.PI;
+        this.heading += diff * 0.25;
+      }
     }
 
-    switchTrait(newTraitType) {
+    switchTrait(newTraitType, herdId = null) {
       this.traitType = newTraitType;
       this.trait = CONFIG.traits[this.traitType];
       this.color = this.trait.colors[Math.floor(Math.random() * this.trait.colors.length)];
-
-      if (this.traitType === 'GROUP') {
-        // Find nearest group or get a new ID from app if possible
-        this.groupId = window.appInstance ? (Math.floor(Math.random() * 5) + 1) : 1;
-      } else {
-        this.groupId = 0;
-      }
+      this.groupId = this.traitType === 'INTERDEPENDENT' ? (herdId ?? ++nextGroupId) : 0;
     }
 
     canReproduce(abundanceFactor = 0, overpopFactor = 0) {
       let reproChance = this.trait.reproChance * (1 + abundanceFactor * 2.5);
-
-      // Scarcity: Suppress birth rates when over capacity
-      if (overpopFactor > 0) {
-        reproChance *= (1 / (1 + overpopFactor * 2.5));
-      }
+      if (overpopFactor > 0) reproChance *= 1 / (1 + overpopFactor * 2.5);
 
       return (
         this.stage === 'MATURE' &&
@@ -250,15 +287,15 @@
 
     reproduce() {
       this.reproCooldown = CONFIG.reproductionCooldown;
-      const trait = Math.random() < 0.08 ? (this.traitType === 'GROUP' ? 'INDIVIDUAL' : 'GROUP') : this.traitType;
-      return new Boid(this.canvas, trait, this);
+      const trait = Math.random() < 0.08 ? (this.traitType === 'INTERDEPENDENT' ? 'INDIVIDUAL' : 'INTERDEPENDENT') : this.traitType;
+      return new Boid(this.world, trait, this);
     }
 
     draw(ctx) {
       const size = 5.5 * this.scale;
       ctx.save();
       ctx.translate(this.position.x, this.position.y);
-      ctx.rotate(Math.atan2(this.velocity.y, this.velocity.x));
+      ctx.rotate(this.heading);
 
       ctx.fillStyle = this.color;
       ctx.globalAlpha = 0.82;
@@ -281,31 +318,40 @@
       this.canvas = document.getElementById('bg');
       if (!this.canvas) return;
       this.ctx = this.canvas.getContext('2d', { alpha: true });
+      this.world = { width: 0, height: 0 };
       this.boids = [];
+      this.grid = new SpatialGrid(CONFIG.gridCell);
+      this.scratch = [];
       this.isActive = true;
+      this.paused = false;
+      this.speed = 1;
       this.interactionPos = null;
-      this.bgAlpha = 0; // 0 for white, 1 for muted gray
+      this.accumulator = 0;
+      this.lastTime = performance.now();
 
       this.init();
       this.setupInteraction();
       this.setupSlider();
       window.addEventListener('resize', () => this.resize());
-      this.animate();
+      requestAnimationFrame((t) => this.frame(t));
     }
 
     setupInteraction() {
-      const update = (e) => {
+      const updatePos = (x, y) => {
         const rect = this.canvas.getBoundingClientRect();
-        const t = e.touches ? e.touches[0] : e;
-        this.interactionPos = new Vector(t.clientX - rect.left, t.clientY - rect.top);
+        this.interactionPos = new Vector(x - rect.left, y - rect.top);
       };
-      const clear = () => this.interactionPos = null;
+      const clear = () => { this.interactionPos = null; };
 
-      this.canvas.addEventListener('mousemove', update);
-      this.canvas.addEventListener('mouseleave', clear);
-      this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); update(e); }, { passive: false });
-      this.canvas.addEventListener('touchmove', (e) => { e.preventDefault(); update(e); }, { passive: false });
-      this.canvas.addEventListener('touchend', clear);
+      window.addEventListener('mousemove', (e) => updatePos(e.clientX, e.clientY));
+      document.documentElement.addEventListener('mouseleave', clear);
+      window.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 0) updatePos(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
+      window.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 0) updatePos(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
+      window.addEventListener('touchend', clear);
     }
 
     init() {
@@ -324,59 +370,46 @@
           else if (stage === 'JUVENILE') age = CONFIG.stages.NEONATE.ageLimit + Math.random() * (CONFIG.stages.JUVENILE.ageLimit - CONFIG.stages.NEONATE.ageLimit);
           else age = CONFIG.stages.JUVENILE.ageLimit + Math.random() * 500;
 
-          this.boids.push(new Boid(this.canvas, null, null, age));
+          this.boids.push(new Boid(this.world, null, null, age));
         }
       });
     }
 
+    reset() { this.init(); }
+
     manageGroups() {
       const groups = {};
       this.boids.forEach(b => {
-        if (b.traitType === 'GROUP') {
-          if (!groups[b.groupId]) groups[b.groupId] = [];
-          groups[b.groupId].push(b);
+        if (b.traitType === 'INTERDEPENDENT') {
+          (groups[b.groupId] = groups[b.groupId] || []).push(b);
         }
       });
 
-      Object.entries(groups).forEach(([id, members]) => {
+      Object.values(groups).forEach((members) => {
         if (members.length > CONFIG.groupLimits.max) {
-          // Split group
           nextGroupId++;
-          const toShift = members.slice(0, Math.floor(members.length / 2));
-          toShift.forEach(m => m.groupId = nextGroupId);
+          members.slice(0, Math.floor(members.length / 2)).forEach(m => { m.groupId = nextGroupId; });
         }
       });
+    }
+
+    nearestHerd(boid) {
+      let best = null;
+      let bestD = Infinity;
+      for (const o of this.boids) {
+        if (o.traitType !== 'INTERDEPENDENT') continue;
+        const d = Vector.dist(boid.position, o.position);
+        if (d < bestD) { bestD = d; best = o.groupId; }
+      }
+      return best;
     }
 
     stop() { this.isActive = false; }
     start() {
       if (this.isActive) return;
       this.isActive = true;
-      this.animate();
-    }
-
-    setupInteraction() {
-      const updatePos = (x, y) => {
-        const rect = this.canvas.getBoundingClientRect();
-        this.interactionPos = new Vector(x - rect.left, y - rect.top);
-      };
-
-      window.addEventListener('mousemove', (e) => updatePos(e.clientX, e.clientY));
-      window.addEventListener('mouseleave', () => this.interactionPos = null);
-
-      window.addEventListener('touchstart', (e) => {
-        if (e.touches.length > 0) {
-          updatePos(e.touches[0].clientX, e.touches[0].clientY);
-        }
-      }, { passive: false });
-
-      window.addEventListener('touchmove', (e) => {
-        if (e.touches.length > 0) {
-          updatePos(e.touches[0].clientX, e.touches[0].clientY);
-        }
-      }, { passive: false });
-
-      window.addEventListener('touchend', () => this.interactionPos = null);
+      this.lastTime = performance.now();
+      requestAnimationFrame((t) => this.frame(t));
     }
 
     setupSlider() {
@@ -392,34 +425,64 @@
     }
 
     resize() {
-      this.canvas.width = window.innerWidth;
-      this.canvas.height = window.innerHeight;
+      const dpr = window.devicePixelRatio || 1;
+      this.world.width = window.innerWidth;
+      this.world.height = window.innerHeight;
+      this.canvas.width = Math.round(this.world.width * dpr);
+      this.canvas.height = Math.round(this.world.height * dpr);
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
-    animate() {
+    frame(now) {
       if (!this.isActive) return;
 
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      const dt = Math.min(0.1, (now - this.lastTime) / 1000);
+      this.lastTime = now;
 
-      const newBoids = [];
+      if (!this.paused) {
+        this.accumulator += dt * this.speed;
+        let steps = 0;
+        while (this.accumulator >= CONFIG.step && steps < CONFIG.maxStepsPerFrame) {
+          this.step();
+          this.accumulator -= CONFIG.step;
+          steps++;
+        }
+        if (steps === CONFIG.maxStepsPerFrame) this.accumulator = 0; // drop backlog
+      }
+
+      this.render();
+      this.updateStats();
+      requestAnimationFrame((t) => this.frame(t));
+    }
+
+    step() {
       const diff = this.boids.length - CONFIG.maxPopulation;
-      const overpopFactor = Math.max(0, diff / 30); // Softer correction
+      const overpopFactor = Math.max(0, diff / 30);
       const abundanceFactor = Math.max(0, -diff / 100);
 
+      // Phase 1: every boid reads the same snapshot of positions.
+      this.grid.rebuild(this.boids);
+      for (const b of this.boids) {
+        b.flock(this.grid.near(b, this.scratch), this.interactionPos);
+      }
+
+      // Phase 2: integrate, reproduce, die.
+      const newBoids = [];
       for (let i = this.boids.length - 1; i >= 0; i--) {
         const b = this.boids[i];
-        b.flock(this.boids);
         b.update(overpopFactor);
-        b.draw(this.ctx);
 
-        if (b.canReproduce(abundanceFactor, overpopFactor) && this.boids.length < CONFIG.maxPopulation) {
+        if (b.stage === 'MATURE' && b.traitType === 'INDIVIDUAL' && Math.random() < 0.00025) {
+          const herd = this.nearestHerd(b);
+          b.switchTrait('INTERDEPENDENT', herd);
+        }
+
+        if (b.canReproduce(abundanceFactor, overpopFactor) && this.boids.length + newBoids.length < CONFIG.maxPopulation) {
           newBoids.push(b.reproduce());
         }
 
-        // Natural death cycle: Higher for Interdependent (Group), lower for Individuals
         const isAdult = b.stage === 'MATURE' && b.age > CONFIG.stages.MATURE.reproductionAge;
         const baseDeath = isAdult ? b.trait.mortality : 0.00005;
-        // Softer overpopulation mortality
         const deathChance = (baseDeath * (1 - Math.min(0.6, abundanceFactor))) + (overpopFactor * 0.005);
 
         if (Math.random() < deathChance || b.age > 20000) {
@@ -429,9 +492,11 @@
 
       this.boids.push(...newBoids);
       this.manageGroups();
+    }
 
-      this.updateStats();
-      requestAnimationFrame(() => this.animate());
+    render() {
+      this.ctx.clearRect(0, 0, this.world.width, this.world.height);
+      for (const b of this.boids) b.draw(this.ctx);
     }
 
     updateStats() {
@@ -439,7 +504,7 @@
       const indivEl = document.getElementById('count-individual');
 
       const stats = {
-        GROUP: { total: 0, neonate: 0, juvenile: 0, mature: 0 },
+        INTERDEPENDENT: { total: 0, neonate: 0, juvenile: 0, mature: 0 },
         INDIVIDUAL: { total: 0, neonate: 0, juvenile: 0, mature: 0 }
       };
 
@@ -448,17 +513,13 @@
         t.total++;
         if (b.stage === 'NEONATE') t.neonate++;
         else if (b.stage === 'JUVENILE') t.juvenile++;
-        else {
-          // Adult boids are MATURE stage and passed reproductionAge
-          if (b.age > CONFIG.stages.MATURE.reproductionAge) t.mature++;
-          else t.juvenile++;
-        }
+        else if (b.age > CONFIG.stages.MATURE.reproductionAge) t.mature++;
+        else t.juvenile++;
       });
 
-      if (groupEl) groupEl.textContent = stats.GROUP.total;
+      if (groupEl) groupEl.textContent = stats.INTERDEPENDENT.total;
       if (indivEl) indivEl.textContent = stats.INDIVIDUAL.total;
 
-      // Update sub-metrics
       const setSub = (prefix, data) => {
         const n = document.getElementById(`${prefix}-neonate`);
         const j = document.getElementById(`${prefix}-juvenile`);
@@ -468,12 +529,14 @@
         if (m) m.textContent = data.mature;
       };
 
-      setSub('group', stats.GROUP);
+      setSub('group', stats.INTERDEPENDENT);
       setSub('indiv', stats.INDIVIDUAL);
+      this.stats = stats;
     }
   }
 
   window.App = App;
+  window.SAVANA_CONFIG = CONFIG;
 
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     if (!window.appInstance) new App();
