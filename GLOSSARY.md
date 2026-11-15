@@ -41,13 +41,13 @@ A visitor-toggled ecosystem state of scarcity (lower effective Population Cap, h
 _Avoid_: dark mode, night mode
 
 **HUD**:
-The overlay of controls and live ecosystem metrics (census, dock) that sits above the canvas and can collapse to a single pill.
+The glass overlay of controls above the canvas (the Dock), which can collapse to a single pill. The Census is not part of it.
 _Avoid_: legend, bottom bar
 
 **Census**:
-The HUD panel showing live counts of Boids by Trait and Stage and the population trend.
+The live counts of Boids by Trait and Stage, drawn as a non-interactive backdrop behind the canvas so Boids move over it; it greys out while the HUD is collapsed.
 _Avoid_: stats, metrics, legend
 
 **Dock**:
-The HUD's control strip: pause, reset, speed, Population Cap and the Apocalyptic toggle.
+The HUD's control strip: pause, reset, speed, Population Cap and the Apocalyptic toggle. It is a translucent glass surface that morphs into the pill when collapsed.
 _Avoid_: toolbar, bottom bar

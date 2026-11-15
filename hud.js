@@ -6,9 +6,6 @@
   const app = $('app');
   const hud = $('hud');
   const SPEEDS = [0.5, 1, 2];
-  const HISTORY = 90;      // sparkline points
-  const SAMPLE_MS = 500;   // one sample per half second
-  const history = [];
 
   // ---------- Controls ----------
 
@@ -28,7 +25,7 @@
   // The reveal grows from whichever toggle is actually visible: the switch
   // when the HUD is open, the pill when it is collapsed.
   function revealOrigin() {
-    return hud.classList.contains('collapsed') ? $('pill') : $('switch-apoc');
+    return hud.classList.contains('collapsed') ? pill : $('switch-apoc');
   }
 
   function setApocalyptic(on) {
@@ -47,38 +44,60 @@
     app.classList.toggle('apocalyptic', on);
     $('switch-apoc').setAttribute('aria-checked', String(on));
     sim().setApocalyptic(on);
-    updateCapReadout();
   }
 
   const isApocalyptic = () => app.classList.contains('apocalyptic');
+
+  // The dock is one glass surface that morphs between its full size and the
+  // pill. We measure both natural sizes, then animate explicit width/height.
+  const dock = $('dock');
+  const dockFull = $('dock-full');
+  const pill = $('pill');
+  let sizes = null;
+
+  function measure() {
+    const avail = window.innerWidth - (window.innerWidth <= 920 ? 24 : 32);
+    dock.classList.add('measuring');
+    dockFull.style.cssText = `position:relative;left:auto;top:auto;translate:none;width:max-content;max-width:${avail}px`;
+    const full = { w: Math.ceil(dockFull.offsetWidth), h: Math.ceil(dockFull.offsetHeight) };
+    dockFull.style.cssText = '';
+    pill.style.cssText = 'position:relative;inset:auto;width:max-content;padding:0 18px;height:40px';
+    const small = { w: Math.ceil(pill.offsetWidth), h: 40 };
+    pill.style.cssText = '';
+    dock.style.setProperty('--full-w', `${full.w}px`);
+    sizes = { full, small };
+    return sizes;
+  }
+
+  function applySize(collapsed, animate) {
+    const { full, small } = sizes || measure();
+    const t = collapsed ? small : full;
+    if (!animate) dock.classList.add('measuring');
+    dock.style.width = `${t.w}px`;
+    dock.style.height = `${t.h}px`;
+    if (!animate) {
+      void dock.offsetWidth;
+      dock.classList.remove('measuring');
+    }
+  }
+
+  function relayout() {
+    measure();
+    applySize(hud.classList.contains('collapsed'), false);
+  }
 
   // Collapsed controls are visually hidden, so also take them out of the tab
   // order and the accessibility tree.
   function setCollapsed(collapsed, { moveFocus = false } = {}) {
     hud.classList.toggle('collapsed', collapsed);
-    $('dock').inert = collapsed;
-    $('census').inert = collapsed;
-    $('pill').inert = !collapsed;
-    if (moveFocus) (collapsed ? $('pill') : $('fold')).focus({ preventScroll: true });
-    measureDock();
-  }
-
-  function updateCapReadout() {
-    const s = sim();
-    $('cap-readout').textContent = s.apocalyptic
-      ? `cap ${s.effectiveCap} · scarcity`
-      : `cap ${s.effectiveCap}`;
-  }
-
-  // The mobile census sheet sits above the dock, whatever height it wraps to.
-  function measureDock() {
-    const h = $('dock').offsetHeight;
-    if (h) document.documentElement.style.setProperty('--dock-h', `${h}px`);
+    dockFull.inert = collapsed;
+    pill.inert = !collapsed;
+    applySize(collapsed, true);
+    if (moveFocus) (collapsed ? pill : $('fold')).focus({ preventScroll: true });
   }
 
   function reset() {
     sim().reset();
-    history.length = 0;
     setPaused(false);
     setSpeed(1);
   }
@@ -94,19 +113,12 @@
     slider.addEventListener('input', () => {
       CFG.maxPopulation = parseInt(slider.value, 10);
       $('val-max-pop').textContent = slider.value;
-      updateCapReadout();
-    });
+      });
 
     $('switch-apoc').addEventListener('click', () => setApocalyptic(!isApocalyptic()));
 
     $('fold').addEventListener('click', () => setCollapsed(true, { moveFocus: true }));
     $('pill').addEventListener('click', () => setCollapsed(false, { moveFocus: true }));
-
-    // Small screens: the census is a headline pill; tapping lifts a sheet.
-    $('census-toggle').addEventListener('click', () => {
-      const open = $('census').classList.toggle('open');
-      $('census-toggle').setAttribute('aria-expanded', String(open));
-    });
 
     window.addEventListener('keydown', (e) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -122,7 +134,7 @@
       }
     });
 
-    window.addEventListener('resize', measureDock);
+    window.addEventListener('resize', relayout);
   }
 
   // ---------- Census rendering ----------
@@ -136,51 +148,26 @@
     });
   }
 
-  function renderSpark(cap) {
-    if (history.length < 2) return;
-    const W = 240, H = 44, pad = 4;
-    const max = Math.max(cap, ...history) * 1.05;
-    const x = (i) => (i / (HISTORY - 1)) * W + (W - ((history.length - 1) / (HISTORY - 1)) * W);
-    const y = (v) => H - pad - (v / max) * (H - pad * 2);
-    const pts = history.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
-    $('spark-line').setAttribute('d', 'M' + pts.join('L'));
-    $('spark-area').setAttribute('d', `M${x(0).toFixed(1)},${H}L${pts.join('L')}L${x(history.length - 1).toFixed(1)},${H}Z`);
-    const cy = y(cap).toFixed(1);
-    const capLine = $('spark-cap');
-    capLine.setAttribute('y1', cy);
-    capLine.setAttribute('y2', cy);
-  }
-
   function render() {
     const s = sim();
     if (!s || !s.census) return;
     const { INTERDEPENDENT: interdependent, INDIVIDUAL: individual } = s.census;
     const total = interdependent.total + individual.total;
 
-    $('total').textContent = total;
     $('pill-total').textContent = total;
     renderTrait('inter', interdependent);
     renderTrait('indiv', individual);
-    $('mix-inter').style.width = total ? `${(interdependent.total / total) * 100}%` : '50%';
-    $('mix-indiv').style.width = total ? `${(individual.total / total) * 100}%` : '50%';
-    updateCapReadout();
-  }
-
-  function sample() {
-    const s = sim();
-    if (!s || !s.census || s.paused) return;
-    history.push(s.boids.length);
-    if (history.length > HISTORY) history.shift();
-    renderSpark(s.effectiveCap);
   }
 
   function start() {
     if (!sim()) return requestAnimationFrame(start);
     wire();
+    measure();
     setCollapsed(false);
+    applySize(false, false);
+    if (document.fonts) document.fonts.ready.then(relayout);
     // Render the HUD at a relaxed ~10 fps; the simulation runs on its own loop.
     setInterval(render, 100);
-    setInterval(sample, SAMPLE_MS);
     render();
   }
 

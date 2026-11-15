@@ -1,8 +1,9 @@
 :root {
   --fg: #0b0b0f;
   --fg-dim: rgba(11, 11, 15, 0.55);
-  --glass: rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass: rgba(255, 255, 255, 0.28);
+  --glass-border: rgba(0, 0, 0, 0.09);
+  --glass-hi: rgba(255, 255, 255, 0.7);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
   --track: rgba(0, 0, 0, 0.12);
   --interdependent: #3b528b;
@@ -11,6 +12,7 @@
   --ease: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --theme: 0.8s var(--ease);
+  --morph: 0.6s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 * {
@@ -48,8 +50,9 @@ body {
   border-radius: 10px;
   --fg: #fff;
   --fg-dim: rgba(255, 255, 255, 0.6);
-  --glass: rgba(20, 20, 24, 0.5);
-  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass: rgba(24, 24, 30, 0.34);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-hi: rgba(255, 255, 255, 0.18);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   --track: rgba(255, 255, 255, 0.2);
   --interdependent: #7f9bff;
@@ -75,8 +78,108 @@ canvas {
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 1;
+  z-index: 2;
   touch-action: none;
+}
+
+/* ---------- Census (backdrop layer, under the canvas) ----------
+   Outlined counts the boids swim over. Greys out while the HUD is collapsed. */
+
+.census {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  color: var(--fg);
+  transition: color var(--theme);
+  --c-pad: clamp(20px, 3vw, 40px);
+  --stroke-inter: var(--interdependent);
+  --stroke-indiv: var(--individual);
+}
+
+.census-body {
+  position: absolute;
+  top: calc(var(--c-pad) + env(safe-area-inset-top));
+  left: var(--c-pad);
+  width: min(240px, calc(100% - 2 * var(--c-pad)));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.trait {
+  display: grid;
+  grid-template-columns: 8px 1fr;
+  grid-template-areas: "dot name" "count count" "stages stages" "detail detail";
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 4px;
+}
+
+.dot {
+  grid-area: dot;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background 0.6s var(--ease-out);
+}
+
+.trait-name {
+  grid-area: name;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.trait-count {
+  grid-area: count;
+  font-size: clamp(40px, 5vw, 60px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: transparent;
+  -webkit-text-stroke: 1.25px var(--stroke);
+  transition: -webkit-text-stroke-color 0.6s var(--ease-out);
+}
+
+.trait[data-trait="inter"] { --stroke: var(--stroke-inter); }
+.trait[data-trait="indiv"] { --stroke: var(--stroke-indiv); }
+
+.stages {
+  grid-area: stages;
+  display: flex;
+  gap: 4px;
+  height: 4px;
+  transition: opacity 0.6s var(--ease-out);
+}
+
+.stages i {
+  display: block;
+  border-radius: 2px;
+  transition: flex-grow 0.6s var(--ease-out), background 0.6s var(--ease-out);
+  flex: 1 1 0;
+}
+
+.stages i:nth-child(1) { opacity: 0.35; }
+.stages i:nth-child(2) { opacity: 0.65; }
+.stages i:nth-child(3) { opacity: 1; }
+
+.census-stages {
+  grid-area: detail;
+  font-size: 10px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Collapsed HUD: the census recedes to grey. */
+.app:has(.hud.collapsed) .census {
+  --stroke-inter: rgba(128, 128, 128, 0.55);
+  --stroke-indiv: rgba(128, 128, 128, 0.55);
+}
+
+.app:has(.hud.collapsed) .census .dot,
+.app:has(.hud.collapsed) .census .stages i {
+  background: rgba(128, 128, 128, 0.55) !important;
 }
 
 /* ---------- HUD ---------- */
@@ -96,12 +199,11 @@ canvas {
 
 .glass {
   background: var(--glass);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(6px) saturate(170%);
+  -webkit-backdrop-filter: blur(6px) saturate(170%);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-  transition: background var(--theme), border-color var(--theme), box-shadow var(--theme),
-    opacity 0.4s var(--ease-out), transform 0.5s var(--ease-out);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+  transition: background var(--theme), border-color var(--theme), box-shadow var(--theme);
 }
 
 button {
@@ -117,7 +219,7 @@ button:focus-visible,
 input:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .label {
@@ -128,182 +230,44 @@ a:focus-visible {
   color: var(--fg-dim);
 }
 
-/* Census */
-
-.census {
-  position: absolute;
-  top: calc(20px + env(safe-area-inset-top));
-  left: 20px;
-  width: 280px;
-  padding: 16px;
-  border-radius: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  transform-origin: top left;
-}
-
-.census-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
-}
-
-.census-total {
-  font-size: 34px;
-  font-weight: 500;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.census-cap {
-  font-size: 11px;
-  color: var(--fg-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-.census-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.mix {
-  display: flex;
-  height: 8px;
-  border-radius: 4px;
-  overflow: hidden;
-  background: var(--track);
-}
-
-.mix span {
-  height: 100%;
-  transition: width 0.6s var(--ease-out);
-}
-
-.mix .m-inter {
-  background: var(--interdependent);
-}
-
-.mix .m-indiv {
-  background: var(--individual);
-}
-
-.trait {
-  display: grid;
-  grid-template-columns: 8px 1fr auto;
-  align-items: center;
-  column-gap: 10px;
-  row-gap: 6px;
-}
-
-.trait+.trait {
-  margin-top: -2px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.trait-name {
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.trait-count {
-  font-size: 13px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
-.stages {
-  grid-column: 2 / 4;
-  display: flex;
-  gap: 4px;
-  height: 4px;
-}
-
-.stages i {
-  display: block;
-  border-radius: 2px;
-  transition: flex-grow 0.6s var(--ease-out);
-  flex: 1 1 0;
-}
-
-.stages i:nth-child(1) {
-  opacity: 0.35;
-}
-
-.stages i:nth-child(2) {
-  opacity: 0.65;
-}
-
-.stages i:nth-child(3) {
-  opacity: 1;
-}
-
-.census-stages {
-  grid-column: 2 / 4;
-  font-size: 10px;
-  color: var(--fg-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-.spark {
-  width: 100%;
-  height: 44px;
-  display: block;
-  color: var(--fg);
-  overflow: visible;
-}
-
-.spark .line {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-
-.spark .area {
-  fill: currentColor;
-  opacity: 0.08;
-}
-
-.spark .cap {
-  stroke: currentColor;
-  opacity: 0.25;
-  stroke-dasharray: 3 3;
-  stroke-width: 1;
-}
-
-/* Dock */
+/* Dock: one glass surface. hud.js sets its width/height so it can morph into
+   the pill; only the surface animates, the contents cross-fade. */
 
 .dock {
   position: absolute;
-  bottom: calc(20px + env(safe-area-inset-bottom));
+  bottom: calc(16px + env(safe-area-inset-bottom));
   left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100% - 32px);
+  translate: -50% 0;
+  overflow: hidden;
+  border-radius: 22px;
+  transition: width var(--morph), height var(--morph), border-radius var(--morph),
+    background var(--theme), border-color var(--theme), box-shadow var(--theme);
+}
+
+.dock.measuring,
+.dock.measuring * {
+  transition: none !important;
+}
+
+.dock-full {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--full-w, max-content);
+  translate: -50% -50%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 10px 8px 16px;
-  border-radius: 28px;
+  gap: 4px;
+  padding: 5px 8px 5px 14px;
+  transition: opacity 0.25s var(--ease-out) 0.2s;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-right: 10px;
-  font-size: 17px;
+  gap: 9px;
+  padding-right: 8px;
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: -0.02em;
 }
@@ -336,17 +300,21 @@ a:focus-visible {
 
 .sep {
   width: 1px;
-  height: 24px;
+  height: 20px;
   background: var(--glass-border);
-  margin: 0 4px;
+  margin: 0 2px;
   flex: none;
 }
 
+.break {
+  display: none;
+}
+
 .btn {
-  min-width: 44px;
-  height: 44px;
-  padding: 0 12px;
-  border-radius: 22px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -366,17 +334,13 @@ a:focus-visible {
 }
 
 .btn svg {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   stroke: currentColor;
   fill: none;
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.fold svg {
-  transition: transform 0.4s var(--ease-out);
 }
 
 .btn .i-play {
@@ -392,15 +356,15 @@ a:focus-visible {
 }
 
 .speed {
-  min-width: 52px;
+  min-width: 44px;
   font-variant-numeric: tabular-nums;
 }
 
 .cap-control {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 8px;
+  gap: 8px;
+  padding: 0 6px;
 }
 
 .cap-control output {
@@ -415,8 +379,8 @@ input[type=range] {
   -webkit-appearance: none;
   appearance: none;
   background: transparent;
-  width: 120px;
-  height: 44px;
+  width: 104px;
+  height: 36px;
   cursor: pointer;
 }
 
@@ -457,9 +421,9 @@ input[type=range]::-moz-range-thumb {
 }
 
 .switch {
-  height: 44px;
-  padding: 0 12px 0 14px;
-  border-radius: 22px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 18px;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -506,9 +470,9 @@ input[type=range]::-moz-range-thumb {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 44px;
-  padding: 0 12px;
-  border-radius: 22px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 18px;
   font-size: 13px;
   font-weight: 500;
   color: inherit;
@@ -539,48 +503,26 @@ input[type=range]::-moz-range-thumb {
   transform: rotate(-45deg);
 }
 
-/* Collapsed state: everything folds into one pill (the brand + total). */
+/* Collapsed: the dock surface shrinks to the pill; contents cross-fade. */
 
 .pill {
   position: absolute;
-  bottom: calc(20px + env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translate(-50%, 20px) scale(0.9);
-  opacity: 0;
-  pointer-events: none;
-  height: 52px;
-  padding: 0 18px;
-  border-radius: 26px;
+  inset: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 10px;
+  white-space: nowrap;
   font-size: 14px;
   font-weight: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s var(--ease-out);
 }
 
 .pill output {
   font-variant-numeric: tabular-nums;
   color: var(--fg-dim);
-}
-
-.hud.collapsed .census,
-.hud.collapsed .dock {
-  opacity: 0;
-  pointer-events: none;
-  visibility: hidden;
-  transition: opacity 0.4s var(--ease-out), transform 0.5s var(--ease-out), visibility 0s linear 0.5s;
-}
-
-.hud.collapsed .census {
-  transform: translateY(-12px) scale(0.96);
-}
-
-.hud.collapsed .dock {
-  transform: translate(-50%, 20px) scale(0.96);
-}
-
-.pill {
-  visibility: hidden;
 }
 
 .pill-chevron {
@@ -594,77 +536,82 @@ input[type=range]::-moz-range-thumb {
   opacity: 0.6;
 }
 
-.hud.collapsed .pill {
-  visibility: visible;
-  opacity: 1;
-  transform: translate(-50%, 0) scale(1);
-  pointer-events: auto;
+.hud.collapsed .dock {
+  border-radius: 20px;
 }
 
+.hud.collapsed .dock-full {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s var(--ease-out);
+}
+
+.hud.collapsed .pill {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.3s var(--ease-out) 0.2s;
+}
+
+.hud.collapsed .pill:hover {
+  background: var(--track);
+}
 
 /* ---------- Responsive ---------- */
 
 @media (max-width: 920px) {
-  .dock {
+  .dock-full {
     flex-wrap: wrap;
     justify-content: center;
-    border-radius: 24px;
-    padding: 8px;
-    width: calc(100% - 24px);
+    padding: 6px 8px;
     row-gap: 2px;
-  }
-
-  /* Header row: brand on the left, collapse on the right. */
-  .brand {
-    order: -2;
-    flex: 1 1 calc(100% - 56px);
-    padding: 0 4px 0 8px;
-  }
-
-  .fold {
-    order: -1;
   }
 
   .sep {
     display: none;
   }
 
+  /* Row 1: brand, pause, reset, speed, fold. Row 2: cap, apocalyptic, link. */
+  .brand {
+    order: 0;
+    flex: 1 1 auto;
+    padding: 0 4px 0 6px;
+  }
+
+  .fold {
+    order: 5;
+  }
+
+  .break {
+    display: block;
+    order: 6;
+    flex-basis: 100%;
+    height: 0;
+  }
+
   .cap-control {
     order: 10;
-    flex-basis: 100%;
-    justify-content: center;
-    padding-top: 2px;
+    flex: 1 1 120px;
+    padding: 0 4px;
+  }
+
+  .switch {
+    order: 11;
+  }
+
+  .portfolio {
+    order: 12;
   }
 
   input[type=range] {
-    width: min(60vw, 260px);
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 60px;
   }
 }
 
 @media (max-width: 760px) {
   .census {
-    top: calc(12px + env(safe-area-inset-top));
-    left: 12px;
-    width: min(260px, calc(100% - 24px));
-    padding: 12px 14px;
-  }
-
-  /* Census is a compact headline pill; tapping it lifts a bottom sheet. */
-  .census:not(.open) .census-body {
-    display: none;
-  }
-
-  .census.open {
-    top: auto;
-    left: 12px;
-    right: 12px;
-    width: auto;
-    bottom: calc(var(--dock-h, 150px) + 28px + env(safe-area-inset-bottom));
-    max-height: 60dvh;
-    overflow-y: auto;
-    border-radius: 24px;
-    padding: 16px;
-    box-shadow: var(--glass-shadow), 0 -12px 40px rgba(0, 0, 0, 0.12);
+    --c-pad: 16px;
   }
 
   .portfolio span {
@@ -672,16 +619,16 @@ input[type=range]::-moz-range-thumb {
   }
 
   .dock .speed {
-    min-width: 44px;
+    min-width: 36px;
   }
 
   .switch {
-    padding: 0 8px;
+    padding: 0 6px;
     gap: 8px;
   }
 
   .portfolio {
-    padding: 0 10px;
+    padding: 0 8px;
   }
 }
 
