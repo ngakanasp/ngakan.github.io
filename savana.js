@@ -1,7 +1,7 @@
 (function () {
   const CONFIG = {
-    initialCount: 130,
-    maxPopulation: 300,
+    initialCount: 80,
+    maxPopulation: 100,
     perception: 130,
     reproductionCooldown: 500,
     herdLimits: { min: 30, max: 40 },

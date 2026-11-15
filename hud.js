@@ -143,7 +143,6 @@
 
   const historyCanvas = $('history');
   const GREY = 'rgba(128, 128, 128, 0.55)';
-  const SCALE_STEPS = [20, 30, 40, 50, 75, 100, 150, 200, 300, 400, 500, 750, 1000, 1500, 2000];
   const FONT = '"Google Sans Flex", system-ui, sans-serif';
   const SHAPES = window.SAVANA_SHAPES;
   const TRAITS = [
@@ -152,7 +151,15 @@
   ];
   const GUTTER_LEFT = 28;
   const GUTTER_RIGHT = 84;
-  const MARKER = 4.5; // Boid-shape size at the end of each line
+  const MARKER = 3.5; // Boid-shape size at the end of each line
+  const BAR_W = 56; // Stage bar size
+  const BAR_H = 4;
+  const STAGE_ALPHA = [0.35, 0.65, 1]; // Neonate, Juvenile, Mature
+  const MIN_SCALE = 20;
+
+  // Displayed values ease toward the live ones so nothing steps.
+  const view = { inter: 0, indiv: 0, max: MIN_SCALE, stages: { inter: [0, 0, 0], indiv: [0, 0, 0] }, ready: false, t: 0 };
+  const ease = (cur, target, k) => cur + (target - cur) * k;
 
   // Size a canvas to its CSS box at device resolution; returns a ready 2d ctx.
   function prepare(canvas) {
@@ -183,11 +190,6 @@
     };
   }
 
-  // Smallest round number that fits, so the scale is stable and starts at 0.
-  function niceMax(needed) {
-    return SCALE_STEPS.find((s) => s >= needed) || Math.ceil(needed / 500) * 500;
-  }
-
   // The same silhouette as the Boid, pointing along the line (to the right).
   function drawMarker(ctx, trait, color, cx, cy) {
     const pts = trait.shape;
@@ -208,27 +210,52 @@
     if (trait.round) ctx.stroke();
   }
 
-  function drawHistory() {
+  function drawHistory(dt) {
     const s = sim();
-    if (!s || !s.history || s.history.length === 0) return;
+    if (!s || !s.history || !s.census) return;
     const data = s.history;
     const c = prepare(historyCanvas);
     if (!c) return;
     const { ctx, w, h } = c;
     const p = palette();
 
+    // ---- Live values, eased (frame-rate independent) ----
+    const liveInter = s.census.INTERDEPENDENT.total;
+    const liveIndiv = s.census.INDIVIDUAL.total;
+    const live = { inter: s.census.INTERDEPENDENT, indiv: s.census.INDIVIDUAL };
+    const peakNow = Math.max(liveInter, liveIndiv, ...data.map((d) => Math.max(d.inter, d.indiv)));
+    const targetMax = Math.max(MIN_SCALE, peakNow * 1.1);
+    const snap = !view.ready || data.length < 2; // first frame or after Reset
+    const kv = snap ? 1 : 1 - Math.exp(-dt / 0.22);
+    const km = snap ? 1 : 1 - Math.exp(-dt / 0.5);
+    view.inter = ease(view.inter, liveInter, kv);
+    view.indiv = ease(view.indiv, liveIndiv, kv);
+    view.max = ease(view.max, targetMax, km);
+    TRAITS.forEach((t) => {
+      const n = live[t.key];
+      const target = [n.neonate, n.juvenile, n.mature];
+      const sum = n.total || 1;
+      view.stages[t.key] = view.stages[t.key].map((v, i) => ease(v, target[i] / sum, kv));
+    });
+    view.ready = true;
+
+    // ---- Layout: newest sample sits `frac` of a second behind the live edge ----
     const top = 8;
     const bottom = 6;
     const plotW = w - GUTTER_LEFT - GUTTER_RIGHT;
     const span = CFG.historySamples - 1;
-    const x = (i) => GUTTER_LEFT + (plotW * i) / span;
+    const right = GUTTER_LEFT + plotW;
+    const stepTicks = Math.round(1 / CFG.step);
+    const frac = Math.min(1, (s.historyTick || 0) / stepTicks);
+    const last = data.length - 1;
+    const x = (i) => right - ((last - i + frac) * plotW) / span;
+    const y = (v) => h - bottom - (v / view.max) * (h - top - bottom);
+    const liveY = { inter: y(view.inter), indiv: y(view.indiv) };
 
-    // Shared scale across both Traits; it always starts at 0.
-    const peak = Math.max(...data.map((d) => Math.max(d.inter, d.indiv)));
-    const capMax = Math.max(...data.map((d) => d.cap));
-    const showCap = capMax <= peak * 1.8;
-    const max = niceMax(Math.max(peak * 1.1, showCap ? capMax * 1.05 : 0));
-    const y = (v) => h - bottom - (v / max) * (h - top - bottom);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(GUTTER_LEFT, 0, plotW + 2, h);
+    ctx.clip();
 
     // Apocalyptic bands
     ctx.fillStyle = p.band;
@@ -239,44 +266,13 @@
       start = -1;
     };
     data.forEach((d, i) => { if (d.apoc) { if (start < 0) start = i; } else flush(i); });
-    flush(data.length - 1);
-
-    // Baseline at 0, with the 0 and top-of-scale labels in the left gutter.
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = p.dim;
-    ctx.globalAlpha = 0.3;
-    ctx.beginPath();
-    ctx.moveTo(GUTTER_LEFT, y(0) + 0.5);
-    ctx.lineTo(w - GUTTER_RIGHT, y(0) + 0.5);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = p.dim;
-    ctx.font = `9px ${FONT}`;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('0', GUTTER_LEFT - 5, y(0) - 4);
-    ctx.fillText(String(max), GUTTER_LEFT - 5, top);
-
-    // Cap line, labelled
-    if (showCap) {
-      ctx.globalAlpha = 0.7;
-      ctx.strokeStyle = p.dim;
-      ctx.setLineDash([3, 4]);
-      ctx.beginPath();
-      data.forEach((d, i) => { if (i === 0) ctx.moveTo(x(i), y(d.cap)); else ctx.lineTo(x(i), y(d.cap)); });
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = p.dim;
-      ctx.font = `9px ${FONT}`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText('cap', GUTTER_LEFT + 3, y(data[0].cap) - 2);
-    }
+    flush(data.length);
+    if (start >= 0) flush(data.length);
 
     // Trait switches: ticks rising from the baseline
     ctx.strokeStyle = p.dim;
     ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 1;
     ctx.beginPath();
     data.forEach((d, i) => {
       if (!d.switches) return;
@@ -286,49 +282,87 @@
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // Lines recede; the end shapes and labels are at full strength.
-    const last = data[data.length - 1];
+    // Lines recede; they run on to the live (eased) value at the right edge.
     ctx.lineJoin = 'round';
     ctx.lineWidth = 1.25;
     TRAITS.forEach((t) => {
-      if (data.length > 1) {
-        ctx.globalAlpha = 0.75;
-        ctx.strokeStyle = p[t.key];
-        ctx.beginPath();
-        data.forEach((d, i) => { if (i === 0) ctx.moveTo(x(i), y(d[t.key])); else ctx.lineTo(x(i), y(d[t.key])); });
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      }
-      drawMarker(ctx, t, p[t.key], x(data.length - 1), y(last[t.key]));
+      ctx.globalAlpha = 0.75;
+      ctx.strokeStyle = p[t.key];
+      ctx.beginPath();
+      data.forEach((d, i) => { if (i === 0) ctx.moveTo(x(i), y(d[t.key])); else ctx.lineTo(x(i), y(d[t.key])); });
+      ctx.lineTo(right, liveY[t.key]);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     });
+    ctx.restore();
 
-    // Direct labels beside the line ends: count first, name quiet beneath.
-    const lx = x(data.length - 1) + 12;
-    const ys = TRAITS.map((t) => y(last[t.key]));
-    const gap = 28;
+    // Baseline at 0
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = p.dim;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(GUTTER_LEFT, y(0) + 0.5);
+    ctx.lineTo(right, y(0) + 0.5);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = p.dim;
+    ctx.font = `9px ${FONT}`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('0', GUTTER_LEFT - 5, y(0) - 4);
+
+    // End shapes, then direct labels: count, name, Stage bar.
+    TRAITS.forEach((t) => drawMarker(ctx, t, p[t.key], right, liveY[t.key]));
+    const lx = right + 12;
+    const ys = TRAITS.map((t) => liveY[t.key]);
+    const gap = 38;
     const order = ys.map((v, i) => i).sort((a, b) => ys[a] - ys[b]);
     for (let i = 1; i < order.length; i++) {
       if (ys[order[i]] - ys[order[i - 1]] < gap) ys[order[i]] = ys[order[i - 1]] + gap;
     }
     TRAITS.forEach((t, i) => {
-      const cy = Math.min(h - 14, Math.max(10, ys[i]));
+      const cy = Math.min(h - 24, Math.max(10, ys[i]));
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = p.fg;
       ctx.font = `700 14px ${FONT}`;
-      ctx.fillText(String(last[t.key]), lx, cy - 5);
+      ctx.fillText(String(Math.round(view.inter * (t.key === 'inter') + view.indiv * (t.key === 'indiv'))), lx, cy - 5);
       ctx.fillStyle = p.dim;
       ctx.font = `400 9px ${FONT}`;
       ctx.fillText(t.name, lx, cy + 8);
+      drawStageBar(ctx, view.stages[t.key], p[t.key], lx, cy + 15);
     });
   }
 
-  function render() {
+  // Stage bar: Neonate, Juvenile, Mature shares of one Trait, in opacity tiers.
+  function drawStageBar(ctx, shares, color, bx, by) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(bx, by, BAR_W, BAR_H, BAR_H / 2);
+    ctx.clip();
+    ctx.fillStyle = color;
+    const total = shares.reduce((a, b) => a + b, 0) || 1;
+    let cx = bx;
+    shares.forEach((v, i) => {
+      const sw = (v / total) * BAR_W;
+      ctx.globalAlpha = STAGE_ALPHA[i];
+      ctx.fillRect(cx, by, sw + 0.5, BAR_H);
+      cx += sw;
+    });
+    ctx.restore();
+  }
+
+  let lastFrame = 0;
+  let lastTotal = -1;
+  function render(now) {
+    requestAnimationFrame(render);
     const s = sim();
     if (!s || !s.census) return;
-    const { INTERDEPENDENT: interdependent, INDIVIDUAL: individual } = s.census;
-    $('pill-total').textContent = interdependent.total + individual.total;
-    drawHistory();
+    const dt = Math.min(0.1, Math.max(0.001, ((now || 0) - lastFrame) / 1000));
+    lastFrame = now || 0;
+    const total = s.census.INTERDEPENDENT.total + s.census.INDIVIDUAL.total;
+    if (total !== lastTotal) { $('pill-total').textContent = total; lastTotal = total; }
+    drawHistory(dt);
   }
 
   function start() {
@@ -338,9 +372,8 @@
     setCollapsed(false);
     applySize(false, false);
     if (document.fonts) document.fonts.ready.then(relayout);
-    // Render the HUD at a relaxed ~10 fps; the simulation runs on its own loop.
-    setInterval(render, 100);
-    render();
+    // Draw the Census every frame so it glides; the simulation runs on its own loop.
+    requestAnimationFrame(render);
   }
 
   start();

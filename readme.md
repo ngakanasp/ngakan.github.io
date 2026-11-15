@@ -46,8 +46,8 @@ Key global variables that control the ecosystem's balance:
 
 | Variable | Value | Description |
 | :--- | :--- | :--- |
-| `initialCount` | 130 | Starting population count. |
-| `maxPopulation` | 300 | Population Cap (default) (breeding stops here). |
+| `initialCount` | 80 | Starting population count. |
+| `maxPopulation` | 100 | Population Cap (default) (breeding stops here). |
 | `reproductionCooldown`| 500 | Minimum frames between consecutive births for a boid. |
 | `herdLimits.max` | 40 | Maximum size of a single herd before it splits into two. |
 | `interactionRange` | 150 | Distance (px) at which boids sense the Scatter pointer. |
