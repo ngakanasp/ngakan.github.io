@@ -36,6 +36,14 @@ _Avoid_: phase, age group
 The visitor-adjustable limit on how many Boids the ecosystem sustains; above it births are suppressed and mortality rises.
 _Avoid_: max population, capacity
 
+**Leader**:
+The Trait with more living Boids in the Census at a given moment. The lead changes hands when the two counts cross.
+_Avoid_: winner, dominant trait
+
+**Famine**:
+A temporary, system-triggered scarcity that lowers the Population Cap the ecosystem feels without touching the visitor's setting. It is separate from Apocalyptic mode, can overlap with it, and does not change the theme.
+_Avoid_: drought, crash, reset
+
 **Scatter**:
 The visitor's pointer or finger pushing nearby Boids away.
 _Avoid_: mouse avoidance, interaction

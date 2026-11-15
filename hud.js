@@ -270,6 +270,12 @@
     flush(data.length);
     if (start >= 0) flush(data.length);
 
+    // Famine bands: same wash, fainter, so the two read as related but distinct
+    ctx.globalAlpha = 0.7;
+    data.forEach((d, i) => { if (d.famine) { if (start < 0) start = i; } else flush(i); });
+    flush(data.length);
+    ctx.globalAlpha = 1;
+
     // Trait switches: ticks rising from the baseline
     ctx.strokeStyle = p.dim;
     ctx.globalAlpha = 0.5;

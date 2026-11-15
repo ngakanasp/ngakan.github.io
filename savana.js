@@ -19,6 +19,30 @@
     herdLinkRange: 70,
     morphSteps: 60,
     historySamples: 120, // Population History: one sample per simulated second
+    // Baseline pressures that keep either Trait from holding the lead for ever.
+    disease: { from: 10, to: 40, extra: 3 }, // Interdependent mortality grows with Herd size
+    abundanceCost: 3, // Individual mortality grows as the ecosystem sits below its Cap
+    drift: [ // slow wander of the working Cap: [fraction, period in seconds]
+      [0.09, 70],
+      [0.06, 130]
+    ],
+    leadMargin: 7, // a Trait must lead by this many Boids to count as the Leader
+    famine: {
+      stagnantSeconds: 60, // no lead change and population near the Cap for this long
+      nearCap: 0.1, // "near the Cap" = within this fraction of it
+      chancePerSecond: 0.05, // once eligible
+      cooldownSeconds: 120, // quiet time after a Famine ends
+      depth: [0.35, 0.6], // working Cap factor, rolled per Famine
+      onsetSeconds: 10,
+      holdSeconds: 15,
+      easeSeconds: 10, // how long the Boid effects take to fade after the hold
+      capEasePerSecond: 0.25, // working Cap closes on the lowered target this fast
+      cullPerSecond: 4,
+      hitInterdependent: 0.7, // chance the denser-Herd Trait is the harder-hit one
+      slowdown: 0.3,
+      dim: 0.35,
+      victimBias: 1.5
+    },
     traits: {
       INTERDEPENDENT: {
         cohesion: 2.2,
@@ -144,6 +168,7 @@
       this.shape = this.traitType === 'INTERDEPENDENT' ? 1 : 0; // silhouette morph
       this.pulse = 0; // trait-switch ring, 1 -> 0
       this.pulseColor = this.color;
+      this.dim = 0; // Famine dimming, 0 -> 1
       this.trail = [];
       this.trailTick = 0;
 
@@ -277,7 +302,7 @@
       this.acceleration.add(center.sub(this.position).setMag(0.012));
     }
 
-    update(overpopFactor = 0) {
+    update(overpopFactor = 0, famineSlow = 0, famineDim = 0) {
       this.age++;
       if (this.reproCooldown > 0) this.reproCooldown--;
       this.updateStage();
@@ -290,7 +315,8 @@
       this.velocity.add(this.acceleration);
 
       // Lethargy: boids slow down when resources are scarce.
-      const dynamicMaxSpeed = this.maxSpeed * (1 - Math.min(0.4, overpopFactor * 0.15));
+      const dynamicMaxSpeed = this.maxSpeed * (1 - Math.min(0.4, overpopFactor * 0.15)) * (1 - famineSlow);
+      this.dim += (famineDim - this.dim) * 0.05;
       this.velocity.limit(dynamicMaxSpeed);
 
       this.position.add(this.velocity);
@@ -389,7 +415,7 @@
       }
 
       ctx.rotate(this.heading);
-      ctx.globalAlpha = 0.82;
+      ctx.globalAlpha = 0.82 * (1 - this.dim * CONFIG.famine.dim);
       paintBody(ctx, size, smoothstep(this.shape), this.color);
       ctx.restore();
     }
@@ -453,6 +479,7 @@
       this.workingCap = null;
       this.history = [];
       this.historyTick = 0;
+      this.resetDynamics();
       this.isActive = true;
       this.paused = false;
       this.speed = 1;
@@ -492,6 +519,7 @@
       this.boids = [];
       this.remains = [];
       this.cullBudget = 0;
+      this.resetDynamics();
       this.workingCap = this.targetCap;
       this.history = [];
       this.historyTick = 0;
@@ -515,6 +543,94 @@
     }
 
     reset() { this.init(); }
+
+    // Clock, Leader tracking and Famine state; Reset starts them all afresh.
+    resetDynamics() {
+      this.simSteps = 0;
+      this.driftPhases = CONFIG.drift.map(() => Math.random() * TAU);
+      this.leader = null;
+      this.leaderSteps = 0;
+      this.nearCapSteps = 0;
+      this.leadChanges = 0;
+      this.famineCooldown = 0;
+      this.famine = null; // { steps, depth, hit } while a Famine runs
+      this.famineLevel = 0; // 0 -> 1: how hard the Famine bites right now
+    }
+
+    // Slow wander of the Cap so conditions never sit still.
+    get drift() {
+      const t = this.simSteps * CONFIG.step;
+      let d = 1;
+      CONFIG.drift.forEach(([amp, period], i) => {
+        d += amp * Math.sin((t / period) * TAU + this.driftPhases[i]);
+      });
+      return d;
+    }
+
+    // Famine lowers the Cap over its onset and hold, then lets go.
+    get famineFactor() {
+      const f = this.famine;
+      if (!f) return 1;
+      const holdEnd = (CONFIG.famine.onsetSeconds + CONFIG.famine.holdSeconds) / CONFIG.step;
+      if (f.steps >= holdEnd) return 1;
+      const ramp = Math.min(1, f.steps / (CONFIG.famine.onsetSeconds / CONFIG.step));
+      return 1 - (1 - f.depth) * smoothstep(ramp);
+    }
+
+    // Tracks the Leader and starts a Famine when the ecosystem has gone still.
+    updateFamine(inter, indiv, cap) {
+      const F = CONFIG.famine;
+      const secs = (n) => n / CONFIG.step;
+      this.simSteps++;
+
+      const lead = this.leader;
+      if (lead === null) this.leader = inter >= indiv ? 'INTERDEPENDENT' : 'INDIVIDUAL';
+      else if (lead === 'INTERDEPENDENT' && indiv - inter >= CONFIG.leadMargin) this.leader = 'INDIVIDUAL';
+      else if (lead === 'INDIVIDUAL' && inter - indiv >= CONFIG.leadMargin) this.leader = 'INTERDEPENDENT';
+      if (this.leader !== lead) {
+        if (lead !== null) this.leadChanges++;
+        this.leaderSteps = 0;
+      } else this.leaderSteps++;
+
+      const n = inter + indiv;
+      if (Math.abs(n - cap) <= cap * F.nearCap) this.nearCapSteps++; else this.nearCapSteps = 0;
+
+      const f = this.famine;
+      if (f) {
+        f.steps++;
+        const holdEnd = secs(F.onsetSeconds + F.holdSeconds);
+        const onset = secs(F.onsetSeconds);
+        if (f.steps < onset) this.famineLevel = smoothstep(f.steps / onset);
+        else if (f.steps < holdEnd) this.famineLevel = 1;
+        else {
+          this.famineLevel = Math.max(0, 1 - smoothstep((f.steps - holdEnd) / secs(F.easeSeconds)));
+          if (f.steps >= holdEnd + secs(F.easeSeconds)) {
+            this.famine = null;
+            this.famineLevel = 0;
+            this.famineCooldown = secs(F.cooldownSeconds);
+          }
+        }
+        return;
+      }
+
+      if (this.famineCooldown > 0) { this.famineCooldown--; return; }
+      const still = Math.min(this.leaderSteps, this.nearCapSteps) >= secs(F.stagnantSeconds);
+      if (still && Math.random() < F.chancePerSecond * CONFIG.step) this.startFamine();
+    }
+
+    startFamine() {
+      const F = CONFIG.famine;
+      this.famine = {
+        steps: 0,
+        depth: F.depth[0] + Math.random() * (F.depth[1] - F.depth[0]),
+        hit: Math.random() < F.hitInterdependent ? 'INTERDEPENDENT' : 'INDIVIDUAL'
+      };
+    }
+
+    // Famine's effect on one Boid: 0 unless its Trait is the harder-hit one.
+    famineHit(b) {
+      return this.famine && b.traitType === this.famine.hit ? this.famineLevel : 0;
+    }
 
     manageHerds() {
       const herds = {};
@@ -544,7 +660,7 @@
     }
 
     get targetCap() {
-      return CONFIG.maxPopulation * (this.apocalyptic ? CONFIG.apocalypse.capFactor : 1);
+      return CONFIG.maxPopulation * (this.apocalyptic ? CONFIG.apocalypse.capFactor : 1) * this.drift * this.famineFactor;
     }
 
     // The cap the ecosystem actually feels: it eases toward the target so a
@@ -558,7 +674,10 @@
       if (this.workingCap === null) this.workingCap = target;
       const gap = target - this.workingCap;
       if (Math.abs(gap) < 0.5) this.workingCap = target;
-      else this.workingCap += gap * CONFIG.capEasePerSecond * CONFIG.step;
+      else {
+        const rate = this.famine ? CONFIG.famine.capEasePerSecond : CONFIG.capEasePerSecond;
+        this.workingCap += gap * rate * CONFIG.step;
+      }
     }
 
     // Overpopulation victims: favour Mature/old and isolated Boids, spare Neonates.
@@ -567,6 +686,7 @@
       const weights = this.boids.map((b) => {
         let w = b.stage === 'NEONATE' ? 0 : b.stage === 'JUVENILE' ? 0.3 : 1 + Math.min(2, b.age / 5000);
         if (!b.hasPartner) w *= 1.5;
+        w *= 1 + CONFIG.famine.victimBias * this.famineHit(b);
         total += w;
         return w;
       });
@@ -630,6 +750,14 @@
       this.easeCap();
       const cap = this.effectiveCap;
       const diff = this.boids.length - cap;
+      let inter = 0;
+      const herdSize = new Map();
+      for (const b of this.boids) {
+        if (b.traitType !== 'INTERDEPENDENT') continue;
+        inter++;
+        herdSize.set(b.herdId, (herdSize.get(b.herdId) || 0) + 1);
+      }
+      this.updateFamine(inter, this.boids.length - inter, cap);
       const overpopFactor = Math.max(0, diff / 30);
       const abundanceFactor = Math.max(0, -diff / 100);
 
@@ -646,7 +774,8 @@
       const newBoids = [];
       for (let i = this.boids.length - 1; i >= 0; i--) {
         const b = this.boids[i];
-        b.update(overpopFactor);
+        const hit = this.famineHit(b);
+        b.update(overpopFactor, hit * CONFIG.famine.slowdown, hit);
 
         if (b.stage === 'MATURE' && b.traitType === 'INDIVIDUAL' && Math.random() < 0.00025) {
           const herd = this.nearestHerd(b);
@@ -659,7 +788,16 @@
 
         const isAdult = b.stage === 'MATURE' && b.age > CONFIG.stages.MATURE.reproductionAge;
         const baseDeath = isAdult ? b.trait.mortality : 0.00005;
-        const deathChance = baseDeath * mortalityFactor * (1 - Math.min(0.6, abundanceFactor));
+        let deathChance = baseDeath * mortalityFactor * (1 - Math.min(0.6, abundanceFactor));
+        if (isAdult) {
+          if (b.traitType === 'INTERDEPENDENT') {
+            const D = CONFIG.disease;
+            const crowd = Math.min(1, Math.max(0, ((herdSize.get(b.herdId) || 0) - D.from) / (D.to - D.from)));
+            deathChance *= 1 + D.extra * crowd;
+          } else {
+            deathChance *= 1 + Math.min(1, abundanceFactor * CONFIG.abundanceCost);
+          }
+        }
 
         if (Math.random() < deathChance || b.age > 20000) {
           this.kill(i);
@@ -668,7 +806,8 @@
 
       // Overpopulation culls are rationed so a lower cap is a gradual decline.
       if (diff > 0) {
-        this.cullBudget = Math.min(2, this.cullBudget + CONFIG.maxOverpopDeathsPerSecond * CONFIG.step);
+        const rate = this.famine ? CONFIG.famine.cullPerSecond : CONFIG.maxOverpopDeathsPerSecond;
+        this.cullBudget = Math.min(2, this.cullBudget + rate * CONFIG.step);
         if (this.cullBudget >= 1) {
           const v = this.pickVictim();
           if (v >= 0) { this.kill(v); this.cullBudget -= 1; }
@@ -697,6 +836,7 @@
         indiv: this.boids.length - inter,
         cap: this.workingCap,
         apoc: this.apocalyptic ? 1 : 0,
+        famine: this.famine ? 1 : 0,
         switches: this.world.switches
       });
       this.world.switches = 0;
