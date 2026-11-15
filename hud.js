@@ -179,7 +179,7 @@
 
   function palette() {
     if (hud.classList.contains('collapsed')) {
-      return { inter: GREY, indiv: GREY, dim: GREY, fg: GREY, band: 'rgba(128, 128, 128, 0.12)' };
+      return { inter: GREY, indiv: GREY, dim: GREY, fg: GREY, band: 'rgba(128, 128, 128, 0.12)', famine: 'rgba(128, 128, 128, 0.12)' };
     }
     const cs = getComputedStyle(app);
     return {
@@ -187,7 +187,8 @@
       indiv: cs.getPropertyValue('--individual').trim(),
       dim: cs.getPropertyValue('--fg-dim').trim(),
       fg: cs.getPropertyValue('--fg').trim(),
-      band: 'rgba(128, 128, 128, 0.16)'
+      band: 'rgba(128, 128, 128, 0.16)',
+      famine: 'rgba(205, 95, 55, 0.2)' // terracotta: warm, apart from the greys and the viridis lines
     };
   }
 
@@ -270,11 +271,10 @@
     flush(data.length);
     if (start >= 0) flush(data.length);
 
-    // Famine bands: same wash, fainter, so the two read as related but distinct
-    ctx.globalAlpha = 0.7;
+    // Famine bands: warm tint, so they read apart from the grey Apocalyptic bands
+    ctx.fillStyle = p.famine;
     data.forEach((d, i) => { if (d.famine) { if (start < 0) start = i; } else flush(i); });
     flush(data.length);
-    ctx.globalAlpha = 1;
 
     // Trait switches: ticks rising from the baseline
     ctx.strokeStyle = p.dim;
