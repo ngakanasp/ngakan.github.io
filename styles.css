@@ -97,7 +97,7 @@ body {
 
 .census-body {
   position: absolute;
-  top: calc(var(--c-pad) + env(safe-area-inset-top));
+  bottom: calc(76px + env(safe-area-inset-bottom));
   left: var(--c-pad);
   width: min(310px, calc(100% - 2 * var(--c-pad)));
 }
@@ -485,7 +485,24 @@ input[type=range]::-moz-range-thumb {
 
 /* ---------- Responsive ---------- */
 
+/* Wide screens: the Census takes the left quarter of the bottom band and the Dock
+   centres in the remaining three quarters, so they share one row. */
+@media (min-width: 1101px) {
+  .census-body {
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    width: calc(25% - var(--c-pad));
+  }
+
+  .dock {
+    left: calc(62.5% - var(--c-pad) / 2);
+  }
+}
+
 @media (max-width: 920px) {
+  .census-body {
+    bottom: calc(112px + env(safe-area-inset-bottom));
+  }
+
   .dock-full {
     flex-wrap: wrap;
     justify-content: center;
