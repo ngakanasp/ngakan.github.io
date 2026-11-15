@@ -90,6 +90,7 @@
   // order and the accessibility tree.
   function setCollapsed(collapsed, { moveFocus = false } = {}) {
     hud.classList.toggle('collapsed', collapsed);
+    app.classList.toggle('hud-collapsed', collapsed);
     dockFull.inert = collapsed;
     pill.inert = !collapsed;
     applySize(collapsed, true);

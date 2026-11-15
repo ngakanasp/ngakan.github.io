@@ -100,6 +100,7 @@ body {
   bottom: calc(76px + env(safe-area-inset-bottom));
   left: var(--c-pad);
   width: min(310px, calc(100% - 2 * var(--c-pad)));
+  transition: bottom var(--morph);
 }
 
 /* Population History: drawn by hud.js, with the counts labelled at the line ends. */
@@ -168,7 +169,7 @@ a:focus-visible {
   overflow: hidden;
   border-radius: 22px;
   transition: width var(--morph), height var(--morph), border-radius var(--morph),
-    background var(--theme), border-color var(--theme), box-shadow var(--theme);
+    left var(--morph), translate var(--morph), background var(--theme), border-color var(--theme), box-shadow var(--theme);
 }
 
 .dock.measuring,
@@ -485,16 +486,30 @@ input[type=range]::-moz-range-thumb {
 
 /* ---------- Responsive ---------- */
 
+.hud.collapsed .dock {
+  left: var(--c-pad);
+  translate: 0 0;
+}
+
 /* Wide screens: the Census takes the left quarter of the bottom band and the Dock
-   centres in the remaining three quarters, so they share one row. */
+   sits right beside it, growing rightwards and collapsing back to the left. */
 @media (min-width: 1101px) {
   .census-body {
     bottom: calc(16px + env(safe-area-inset-bottom));
     width: calc(25% - var(--c-pad));
   }
 
-  .dock {
-    left: calc(62.5% - var(--c-pad) / 2);
+  .dock,
+  .hud.collapsed .dock {
+    left: calc(25% + 8px);
+    translate: 0 0;
+  }
+}
+
+/* Stacked layouts: when the Dock folds to the pill, the Census drops down to sit just above it. */
+@media (max-width: 1100px) {
+  .app.hud-collapsed .census-body {
+    bottom: calc(66px + env(safe-area-inset-bottom));
   }
 }
 
