@@ -508,8 +508,15 @@
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
 
+      // Moving the origin changes the overlay's computed clip-path, which the
+      // transition would animate (the circle drifts in from 50% 50%). Apply
+      // the new origin with transitions off, flush styles, then re-enable.
+      const overlay = document.querySelector('.apocalypse-overlay');
+      overlay.style.transition = 'none';
       document.documentElement.style.setProperty('--spawn-x', `${x}px`);
       document.documentElement.style.setProperty('--spawn-y', `${y}px`);
+      void overlay.offsetWidth;
+      overlay.style.transition = '';
 
       statusDot.classList.toggle('active-alt');
       document.querySelector('.app').classList.toggle('apocalyptic');
