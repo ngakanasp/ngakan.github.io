@@ -8,14 +8,14 @@ The simulation features two distinct behavioral archetypes that dictate how boid
 
 ### 1. Interdependent
 - **Philosophy**: Strength in numbers, community, and social structure.
-- **Behavior**: High **Alignment** and **Cohesion**. These boids actively seek out their specific "herd" (a **Herd**, identified by `groupId`) and move in synchronized patterns.
-- **Reproduction**: Highly efficient in groups. They have a high base `reproChance` but requires being close to a partner within the herd.
-- **Mortality**: Higher natural mortality rate due to competition for resources and group visibility.
+- **Behavior**: High **Alignment** and **Cohesion**. These boids actively seek out their specific "herd" (a **Herd**, identified by `herdId`) and move in synchronized patterns.
+- **Reproduction**: Highly efficient in herds. They have a high base `reproChance` but requires being close to a partner within the herd.
+- **Mortality**: Higher natural mortality rate due to competition for resources and herd visibility.
 
-### 2. Individual (Solo Trait)
+### 2. Individual
 - **Philosophy**: Independence, resilience, and cautious exploration.
-- **Behavior**: High **Separation** and **Space Hunger**. They prioritize personal space and spend most of their time wandering solo.
-- **Reproduction**: Difficult and slow. Requires a rare chance encounter with another solitary mature boid.
+- **Behavior**: High **Separation** and **Space Hunger**. They prioritize personal space and spend most of their time wandering alone.
+- **Reproduction**: Difficult and slow. Requires a rare chance encounter with another mature Individual.
 - **Mortality**: Low natural mortality. Their solitary nature makes them more resilient and longer-lived.
 
 ---
@@ -47,10 +47,10 @@ Key global variables that control the ecosystem's balance:
 | Variable | Value | Description |
 | :--- | :--- | :--- |
 | `initialCount` | 130 | Starting population count. |
-| `maxPopulation` | 300 | Maximum ecosystem capacity (breeding stops here). |
+| `maxPopulation` | 300 | Population Cap (default) (breeding stops here). |
 | `reproductionCooldown`| 500 | Minimum frames between consecutive births for a boid. |
-| `groupLimits.max` | 40 | Maximum size of a single herd before it splits into two. |
-| `interactionRange` | 150 | Distance (px) at which boids sense mouse/touch input. |
+| `herdLimits.max` | 40 | Maximum size of a single herd before it splits into two. |
+| `interactionRange` | 150 | Distance (px) at which boids sense the Scatter pointer. |
 | `interactionForce` | 2.8 | Strength of the "flee" repulsion when interacted with. |
 
 ---

@@ -45,7 +45,7 @@
               <i id="st-inter-1" style="background:var(--interdependent)"></i>
               <i id="st-inter-2" style="background:var(--interdependent)"></i>
             </div>
-            <div class="stages-legend" id="lg-inter">neonate 0 · juvenile 0 · mature 0</div>
+            <div class="census-stages" id="cs-inter">neonate 0 · juvenile 0 · mature 0</div>
           </div>
 
           <div class="trait" data-trait="indiv">
@@ -57,7 +57,7 @@
               <i id="st-indiv-1" style="background:var(--individual)"></i>
               <i id="st-indiv-2" style="background:var(--individual)"></i>
             </div>
-            <div class="stages-legend" id="lg-indiv">neonate 0 · juvenile 0 · mature 0</div>
+            <div class="census-stages" id="cs-indiv">neonate 0 · juvenile 0 · mature 0</div>
           </div>
 
           <svg class="spark" id="spark" viewBox="0 0 240 44" preserveAspectRatio="none" aria-hidden="true">
@@ -68,18 +68,12 @@
         </div>
       </section>
 
-      <button class="fold glass" id="fold" aria-label="Hide interface (H)" title="Hide interface (H)">
-        <svg viewBox="0 0 24 24">
-          <path d="M5 15l7-7 7 7" />
-        </svg>
-      </button>
-
       <!-- Dock -->
       <div class="dock glass" id="dock" role="toolbar" aria-label="Simulation controls">
         <div class="brand"><span class="pulse"></span>Ngakan</div>
         <span class="sep"></span>
 
-        <button class="btn" id="btn-pause" aria-pressed="false" aria-label="Pause (Space)" title="Pause (Space)">
+        <button class="btn" id="btn-pause" aria-pressed="false" aria-label="Pause" title="Pause (Space)">
           <svg class="i-pause" viewBox="0 0 24 24">
             <path d="M8 5v14M16 5v14" />
           </svg>
@@ -117,11 +111,21 @@
             <polyline points="7 7 17 7 17 17"></polyline>
           </svg>
         </a>
+
+        <span class="sep"></span>
+        <button class="btn fold" id="fold" aria-label="Collapse interface (H)" title="Collapse interface (H)">
+          <svg viewBox="0 0 24 24">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
       </div>
 
       <!-- Collapsed pill -->
-      <button class="pill glass" id="pill" aria-label="Show interface (H)">
+      <button class="pill glass" id="pill" aria-label="Expand interface (H)" title="Expand interface (H)">
         <span class="pulse"></span>Ngakan <output id="pill-total">0</output>
+        <svg class="pill-chevron" viewBox="0 0 24 24">
+          <path d="M6 15l6-6 6 6" />
+        </svg>
       </button>
     </div>
   </div>

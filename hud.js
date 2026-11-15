@@ -12,15 +12,28 @@
 
   // ---------- Controls ----------
 
-  function setPaused(p) {
-    sim().paused = p;
-    $('btn-pause').setAttribute('aria-pressed', String(p));
+  function setPaused(paused) {
+    sim().paused = paused;
+    const btn = $('btn-pause');
+    btn.setAttribute('aria-pressed', String(paused));
+    btn.setAttribute('aria-label', paused ? 'Resume' : 'Pause');
+    btn.title = paused ? 'Resume (Space)' : 'Pause (Space)';
   }
 
-  function setApocalyptic(on, originEl) {
+  function setSpeed(speed) {
+    sim().speed = speed;
+    $('btn-speed').textContent = `${speed}×`;
+  }
+
+  // The reveal grows from whichever toggle is actually visible: the switch
+  // when the HUD is open, the pill when it is collapsed.
+  function revealOrigin() {
+    return hud.classList.contains('collapsed') ? $('pill') : $('switch-apoc');
+  }
+
+  function setApocalyptic(on) {
     const overlay = document.querySelector('.apocalypse-overlay');
-    const el = originEl || $('switch-apoc');
-    const r = el.getBoundingClientRect();
+    const r = revealOrigin().getBoundingClientRect();
 
     // Moving the origin changes the overlay's computed clip-path, which the
     // transition would animate (the circle drifts in from 50% 50%). Apply the
@@ -37,9 +50,17 @@
     updateCapReadout();
   }
 
-  function setCollapsed(c) {
-    hud.classList.toggle('collapsed', c);
-    if (c) $('pill').focus({ preventScroll: true }); else $('fold').focus({ preventScroll: true });
+  const isApocalyptic = () => app.classList.contains('apocalyptic');
+
+  // Collapsed controls are visually hidden, so also take them out of the tab
+  // order and the accessibility tree.
+  function setCollapsed(collapsed, { moveFocus = false } = {}) {
+    hud.classList.toggle('collapsed', collapsed);
+    $('dock').inert = collapsed;
+    $('census').inert = collapsed;
+    $('pill').inert = !collapsed;
+    if (moveFocus) (collapsed ? $('pill') : $('fold')).focus({ preventScroll: true });
+    measureDock();
   }
 
   function updateCapReadout() {
@@ -49,14 +70,24 @@
       : `cap ${s.effectiveCap}`;
   }
 
+  // The mobile census sheet sits above the dock, whatever height it wraps to.
+  function measureDock() {
+    const h = $('dock').offsetHeight;
+    if (h) document.documentElement.style.setProperty('--dock-h', `${h}px`);
+  }
+
+  function reset() {
+    sim().reset();
+    history.length = 0;
+    setPaused(false);
+    setSpeed(1);
+  }
+
   function wire() {
     $('btn-pause').addEventListener('click', () => setPaused(!sim().paused));
-    $('btn-reset').addEventListener('click', () => { sim().reset(); history.length = 0; });
-
-    $('btn-speed').addEventListener('click', (e) => {
-      const i = (SPEEDS.indexOf(sim().speed) + 1) % SPEEDS.length;
-      sim().speed = SPEEDS[i];
-      e.currentTarget.textContent = `${SPEEDS[i]}×`;
+    $('btn-reset').addEventListener('click', reset);
+    $('btn-speed').addEventListener('click', () => {
+      setSpeed(SPEEDS[(SPEEDS.indexOf(sim().speed) + 1) % SPEEDS.length]);
     });
 
     const slider = $('slider-max-pop');
@@ -66,39 +97,39 @@
       updateCapReadout();
     });
 
-    $('switch-apoc').addEventListener('click', (e) => {
-      setApocalyptic(!app.classList.contains('apocalyptic'), e.currentTarget);
-    });
+    $('switch-apoc').addEventListener('click', () => setApocalyptic(!isApocalyptic()));
 
-    $('fold').addEventListener('click', () => setCollapsed(true));
-    $('pill').addEventListener('click', () => setCollapsed(false));
+    $('fold').addEventListener('click', () => setCollapsed(true, { moveFocus: true }));
+    $('pill').addEventListener('click', () => setCollapsed(false, { moveFocus: true }));
 
-    // Small screens: the census shows its headline; tap to expand.
+    // Small screens: the census is a headline pill; tapping lifts a sheet.
     $('census-toggle').addEventListener('click', () => {
       const open = $('census').classList.toggle('open');
       $('census-toggle').setAttribute('aria-expanded', String(open));
     });
 
     window.addEventListener('keydown', (e) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       const tag = (e.target.tagName || '').toLowerCase();
       if (tag === 'input' && e.target.type !== 'range') return;
       if (e.code === 'Space' && tag !== 'button' && tag !== 'a') {
         e.preventDefault();
         setPaused(!sim().paused);
       } else if (e.key === 'a' || e.key === 'A') {
-        setApocalyptic(!app.classList.contains('apocalyptic'));
+        setApocalyptic(!isApocalyptic());
       } else if (e.key === 'h' || e.key === 'H') {
         setCollapsed(!hud.classList.contains('collapsed'));
       }
     });
+
+    window.addEventListener('resize', measureDock);
   }
 
   // ---------- Census rendering ----------
 
   function renderTrait(prefix, data) {
     $(`count-${prefix}`).textContent = data.total;
-    $(`lg-${prefix}`).textContent =
+    $(`cs-${prefix}`).textContent =
       `neonate ${data.neonate} · juvenile ${data.juvenile} · mature ${data.mature}`;
     [data.neonate, data.juvenile, data.mature].forEach((n, i) => {
       $(`st-${prefix}-${i}`).style.flexGrow = Math.max(n, 0.001);
@@ -122,22 +153,22 @@
 
   function render() {
     const s = sim();
-    if (!s || !s.stats) return;
-    const { INTERDEPENDENT: a, INDIVIDUAL: b } = s.stats;
-    const total = a.total + b.total;
+    if (!s || !s.census) return;
+    const { INTERDEPENDENT: interdependent, INDIVIDUAL: individual } = s.census;
+    const total = interdependent.total + individual.total;
 
     $('total').textContent = total;
     $('pill-total').textContent = total;
-    renderTrait('inter', a);
-    renderTrait('indiv', b);
-    $('mix-inter').style.width = total ? `${(a.total / total) * 100}%` : '50%';
-    $('mix-indiv').style.width = total ? `${(b.total / total) * 100}%` : '50%';
+    renderTrait('inter', interdependent);
+    renderTrait('indiv', individual);
+    $('mix-inter').style.width = total ? `${(interdependent.total / total) * 100}%` : '50%';
+    $('mix-indiv').style.width = total ? `${(individual.total / total) * 100}%` : '50%';
     updateCapReadout();
   }
 
   function sample() {
     const s = sim();
-    if (!s || !s.stats || s.paused) return;
+    if (!s || !s.census || s.paused) return;
     history.push(s.boids.length);
     if (history.length > HISTORY) history.shift();
     renderSpark(s.effectiveCap);
@@ -146,6 +177,7 @@
   function start() {
     if (!sim()) return requestAnimationFrame(start);
     wire();
+    setCollapsed(false);
     // Render the HUD at a relaxed ~10 fps; the simulation runs on its own loop.
     setInterval(render, 100);
     setInterval(sample, SAMPLE_MS);

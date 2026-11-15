@@ -248,7 +248,7 @@ a:focus-visible {
   opacity: 1;
 }
 
-.stages-legend {
+.census-stages {
   grid-column: 2 / 4;
   font-size: 10px;
   color: var(--fg-dim);
@@ -373,6 +373,10 @@ a:focus-visible {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.fold svg {
+  transition: transform 0.4s var(--ease-out);
 }
 
 .btn .i-play {
@@ -563,6 +567,8 @@ input[type=range]::-moz-range-thumb {
 .hud.collapsed .dock {
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.4s var(--ease-out), transform 0.5s var(--ease-out), visibility 0s linear 0.5s;
 }
 
 .hud.collapsed .census {
@@ -573,36 +579,28 @@ input[type=range]::-moz-range-thumb {
   transform: translate(-50%, 20px) scale(0.96);
 }
 
+.pill {
+  visibility: hidden;
+}
+
+.pill-chevron {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.6;
+}
+
 .hud.collapsed .pill {
+  visibility: visible;
   opacity: 1;
   transform: translate(-50%, 0) scale(1);
   pointer-events: auto;
 }
 
-.fold {
-  position: absolute;
-  top: calc(20px + env(safe-area-inset-top));
-  right: 20px;
-  width: 44px;
-  height: 44px;
-  border-radius: 22px;
-  display: grid;
-  place-items: center;
-}
-
-.fold svg {
-  width: 18px;
-  height: 18px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
-.hud.collapsed .fold {
-  opacity: 0;
-  pointer-events: none;
-}
 
 /* ---------- Responsive ---------- */
 
@@ -616,7 +614,17 @@ input[type=range]::-moz-range-thumb {
     row-gap: 2px;
   }
 
-  .brand,
+  /* Header row: brand on the left, collapse on the right. */
+  .brand {
+    order: -2;
+    flex: 1 1 calc(100% - 56px);
+    padding: 0 4px 0 8px;
+  }
+
+  .fold {
+    order: -1;
+  }
+
   .sep {
     display: none;
   }
@@ -637,27 +645,30 @@ input[type=range]::-moz-range-thumb {
   .census {
     top: calc(12px + env(safe-area-inset-top));
     left: 12px;
-    width: min(260px, calc(100% - 80px));
+    width: min(260px, calc(100% - 24px));
     padding: 12px 14px;
   }
 
-  /* Census folds to its headline on small screens; tap to expand. */
+  /* Census is a compact headline pill; tapping it lifts a bottom sheet. */
   .census:not(.open) .census-body {
     display: none;
   }
 
-  .fold {
-    top: calc(12px + env(safe-area-inset-top));
+  .census.open {
+    top: auto;
+    left: 12px;
     right: 12px;
+    width: auto;
+    bottom: calc(var(--dock-h, 150px) + 28px + env(safe-area-inset-bottom));
+    max-height: 60dvh;
+    overflow-y: auto;
+    border-radius: 24px;
+    padding: 16px;
+    box-shadow: var(--glass-shadow), 0 -12px 40px rgba(0, 0, 0, 0.12);
   }
 
   .portfolio span {
     display: none;
-  }
-
-  .dock .btn {
-    min-width: 40px;
-    padding: 0 8px;
   }
 
   .dock .speed {

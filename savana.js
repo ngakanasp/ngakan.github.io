@@ -4,7 +4,7 @@
     maxPopulation: 300,
     perception: 130,
     reproductionCooldown: 500,
-    groupLimits: { min: 30, max: 40 },
+    herdLimits: { min: 30, max: 40 },
     interactionRange: 150,
     interactionForce: 2.8,
     step: 1 / 60, // fixed simulation timestep (seconds)
@@ -39,7 +39,7 @@
     }
   };
 
-  let nextGroupId = 1;
+  let nextHerdId = 1;
 
   class Vector {
     constructor(x = 0, y = 0) {
@@ -105,7 +105,7 @@
       this.traitType = traitType || (Math.random() > 0.6 ? 'INTERDEPENDENT' : 'INDIVIDUAL');
       this.trait = CONFIG.traits[this.traitType];
       this.color = this.trait.colors[Math.floor(Math.random() * this.trait.colors.length)];
-      this.groupId = parent ? parent.groupId : (this.traitType === 'INTERDEPENDENT' ? nextGroupId : 0);
+      this.herdId = parent ? parent.herdId : (this.traitType === 'INTERDEPENDENT' ? nextHerdId : 0);
 
       if (parent) {
         // Offset from the parent so separation never sees d = 0.
@@ -156,7 +156,7 @@
       else if (this.position.y > height + m) this.position.y = -m;
     }
 
-    flock(neighbours, pointer, fleeFactor = 1) {
+    steer(neighbours, pointer, fleeFactor = 1) {
       const alignment = new Vector();
       const cohesion = new Vector();
       const separation = new Vector();
@@ -174,7 +174,7 @@
         const d = Vector.dist(this.position, other.position);
         if (d >= perception) continue;
 
-        if (this.traitType === 'INTERDEPENDENT' && other.groupId === this.groupId) {
+        if (this.traitType === 'INTERDEPENDENT' && other.herdId === this.herdId) {
           alignment.add(other.velocity);
           cohesion.add(other.position);
           totalTrait++;
@@ -270,7 +270,7 @@
       this.traitType = newTraitType;
       this.trait = CONFIG.traits[this.traitType];
       this.color = this.trait.colors[Math.floor(Math.random() * this.trait.colors.length)];
-      this.groupId = this.traitType === 'INTERDEPENDENT' ? (herdId ?? ++nextGroupId) : 0;
+      this.herdId = this.traitType === 'INTERDEPENDENT' ? (herdId ?? ++nextHerdId) : 0;
     }
 
     canReproduce(abundanceFactor = 0, overpopFactor = 0) {
@@ -346,11 +346,13 @@
 
       window.addEventListener('mousemove', (e) => updatePos(e.clientX, e.clientY));
       document.documentElement.addEventListener('mouseleave', clear);
+      // Touches that land on the HUD operate it; they must not scatter boids.
+      const onHud = (e) => e.target.closest && e.target.closest('.glass');
       window.addEventListener('touchstart', (e) => {
-        if (e.touches.length > 0) updatePos(e.touches[0].clientX, e.touches[0].clientY);
+        if (e.touches.length > 0 && !onHud(e)) updatePos(e.touches[0].clientX, e.touches[0].clientY);
       }, { passive: true });
       window.addEventListener('touchmove', (e) => {
-        if (e.touches.length > 0) updatePos(e.touches[0].clientX, e.touches[0].clientY);
+        if (e.touches.length > 0 && !onHud(e)) updatePos(e.touches[0].clientX, e.touches[0].clientY);
       }, { passive: true });
       window.addEventListener('touchend', clear);
     }
@@ -358,7 +360,7 @@
     init() {
       this.resize();
       this.boids = [];
-      nextGroupId = 1;
+      nextHerdId = 1;
 
       const total = CONFIG.initialCount;
       // 50% Neonate, 40% Juvenile, 10% Mature
@@ -378,18 +380,18 @@
 
     reset() { this.init(); }
 
-    manageGroups() {
-      const groups = {};
+    manageHerds() {
+      const herds = {};
       this.boids.forEach(b => {
         if (b.traitType === 'INTERDEPENDENT') {
-          (groups[b.groupId] = groups[b.groupId] || []).push(b);
+          (herds[b.herdId] = herds[b.herdId] || []).push(b);
         }
       });
 
-      Object.values(groups).forEach((members) => {
-        if (members.length > CONFIG.groupLimits.max) {
-          nextGroupId++;
-          members.slice(0, Math.floor(members.length / 2)).forEach(m => { m.groupId = nextGroupId; });
+      Object.values(herds).forEach((members) => {
+        if (members.length > CONFIG.herdLimits.max) {
+          nextHerdId++;
+          members.slice(0, Math.floor(members.length / 2)).forEach(m => { m.herdId = nextHerdId; });
         }
       });
     }
@@ -400,7 +402,7 @@
       for (const o of this.boids) {
         if (o.traitType !== 'INTERDEPENDENT') continue;
         const d = Vector.dist(boid.position, o.position);
-        if (d < bestD) { bestD = d; best = o.groupId; }
+        if (d < bestD) { bestD = d; best = o.herdId; }
       }
       return best;
     }
@@ -446,7 +448,7 @@
       }
 
       this.render();
-      this.updateStats();
+      this.updateCensus();
       requestAnimationFrame((t) => this.frame(t));
     }
 
@@ -462,7 +464,7 @@
       // Phase 1: every boid reads the same snapshot of positions.
       this.grid.rebuild(this.boids);
       for (const b of this.boids) {
-        b.flock(this.grid.near(b, this.scratch), this.interactionPos, fleeFactor);
+        b.steer(this.grid.near(b, this.scratch), this.interactionPos, fleeFactor);
       }
 
       // Phase 2: integrate, reproduce, die.
@@ -490,7 +492,7 @@
       }
 
       this.boids.push(...newBoids);
-      this.manageGroups();
+      this.manageHerds();
     }
 
     render() {
@@ -498,7 +500,7 @@
       for (const b of this.boids) b.draw(this.ctx);
     }
 
-    updateStats() {
+    updateCensus() {
       const stats = {
         INTERDEPENDENT: { total: 0, neonate: 0, juvenile: 0, mature: 0 },
         INDIVIDUAL: { total: 0, neonate: 0, juvenile: 0, mature: 0 }
@@ -509,11 +511,10 @@
         t.total++;
         if (b.stage === 'NEONATE') t.neonate++;
         else if (b.stage === 'JUVENILE') t.juvenile++;
-        else if (b.age > CONFIG.stages.MATURE.reproductionAge) t.mature++;
-        else t.juvenile++;
+        else t.mature++;
       }
 
-      this.stats = stats;
+      this.census = stats;
     }
   }
 
