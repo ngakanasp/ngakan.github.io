@@ -448,11 +448,6 @@ input[type=range]::-moz-range-thumb {
   transition: opacity 0.2s var(--ease-out);
 }
 
-.pill output {
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-dim);
-}
-
 .pill-chevron {
   width: 16px;
   height: 16px;

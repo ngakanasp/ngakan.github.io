@@ -354,15 +354,12 @@
   }
 
   let lastFrame = 0;
-  let lastTotal = -1;
   function render(now) {
     requestAnimationFrame(render);
     const s = sim();
     if (!s || !s.census) return;
     const dt = Math.min(0.1, Math.max(0.001, ((now || 0) - lastFrame) / 1000));
     lastFrame = now || 0;
-    const total = s.census.INTERDEPENDENT.total + s.census.INDIVIDUAL.total;
-    if (total !== lastTotal) { $('pill-total').textContent = total; lastTotal = total; }
     drawHistory(dt);
   }
 
